@@ -3,6 +3,13 @@ import { DatabaseService, SessionOperationResult } from './databaseService';
 
 export type SessionState = 'not_started' | 'running' | 'paused' | 'completed';
 
+// Session configuration interface
+export interface SessionConfig {
+  userId: number;
+  mood: string;
+  type: string;
+}
+
 // Constants for validation
 const MIN_DURATION = 1; // 1 second minimum
 const MAX_DURATION = 7200; // 2 hours maximum
@@ -13,9 +20,23 @@ export class SessionService {
   private remainingTime: number = 0;
   private sessionData: SessionData | null = null;
   private databaseService: DatabaseService;
+  private sessionConfig: SessionConfig;
 
-  constructor(databaseService?: DatabaseService) {
+  constructor(databaseService?: DatabaseService, sessionConfig?: SessionConfig) {
     this.databaseService = databaseService || new DatabaseService();
+    this.sessionConfig = sessionConfig || this.getDefaultConfig();
+  }
+
+  private getDefaultConfig(): SessionConfig {
+    return {
+      userId: 1, // Fallback to default
+      mood: 'peaceful', // Default mood
+      type: 'breathing' // Default session type
+    };
+  }
+
+  updateSessionConfig(config: Partial<SessionConfig>): void {
+    this.sessionConfig = { ...this.sessionConfig, ...config };
   }
 
   getState(): SessionState {
@@ -92,11 +113,11 @@ export class SessionService {
   private saveSessionData(): void {
     this.sessionData = {
       id: Date.now(), // Simple ID generation
-      userId: 1, // Default user ID for now
+      userId: this.sessionConfig.userId, // Use configurable userId
       duration: this.duration,
-      mood: 'peaceful', // Default mood
+      mood: this.sessionConfig.mood, // Use configurable mood
       completedAt: new Date(),
-      type: 'breathing'
+      type: this.sessionConfig.type // Use configurable type
     };
 
     // Persist to database

@@ -20,39 +20,54 @@ export const useSessionTimer = (): SessionTimerState => {
   useEffect(() => {
     let interval: NodeJS.Timeout;
 
-    if (isRunning && !isPaused && remainingTime > 0) {
+    // Use service's state instead of local state for running/paused checks
+    if (sessionService.getState() === 'running') {
       interval = setInterval(() => {
-        setRemainingTime(prev => Math.max(0, prev - 1));
+        // CRITICAL FIX: Call service.tick() instead of duplicate logic
+        sessionService.tick();
+        
+        // Sync state from service getters instead of local state
+        setRemainingTime(sessionService.getRemainingTime());
+        setIsRunning(sessionService.getState() === 'running');
+        setIsPaused(sessionService.getState() === 'paused');
       }, 1000);
     }
 
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [isRunning, isPaused, remainingTime]);
+  }, [sessionService]); // Re-run when service instance changes
 
   const start = (duration: number) => {
     sessionService.startSession(duration);
-    setRemainingTime(duration);
-    setIsRunning(true);
-    setIsPaused(false);
+    // Sync initial state from service
+    setRemainingTime(sessionService.getRemainingTime());
+    setIsRunning(sessionService.getState() === 'running');
+    setIsPaused(sessionService.getState() === 'paused');
   };
 
   const pause = () => {
     sessionService.pauseSession();
-    setIsPaused(true);
+    // Sync state from service
+    setRemainingTime(sessionService.getRemainingTime());
+    setIsRunning(sessionService.getState() === 'running');
+    setIsPaused(sessionService.getState() === 'paused');
   };
 
   const resume = () => {
     sessionService.resumeSession();
-    setIsPaused(false);
+    // Sync state from service
+    setRemainingTime(sessionService.getRemainingTime());
+    setIsRunning(sessionService.getState() === 'running');
+    setIsPaused(sessionService.getState() === 'paused');
   };
 
   const stop = () => {
     sessionService.stopSession();
-    setIsRunning(false);
-    setIsPaused(false);
-    setRemainingTime(0);
+    // Sync state from service
+    setRemainingTime(sessionService.getRemainingTime());
+    setIsRunning(sessionService.getState() === 'running');
+    setIsPaused(sessionService.getState() === 'paused');
   };
 
   return {

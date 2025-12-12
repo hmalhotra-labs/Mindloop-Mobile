@@ -1,4 +1,5 @@
 import React from 'react';
+import { View, Text } from 'react-native';
 
 interface TimerDisplayProps {
   remainingTime: number; // in seconds
@@ -12,8 +13,15 @@ export const TimerDisplay: React.FC<TimerDisplayProps> = ({ remainingTime }) => 
   };
 
   return (
-    <div>
-      <span>{formatTime(remainingTime)}</span>
-    </div>
+    <View style={{ alignItems: 'center', marginBottom: 30 }}>
+      <Text style={{ 
+        fontSize: 48, 
+        fontWeight: 'bold', 
+        color: '#2c3e50',
+        fontVariant: ['tabular-nums']
+      }}>
+        {formatTime(remainingTime)}
+      </Text>
+    </View>
   );
 };
