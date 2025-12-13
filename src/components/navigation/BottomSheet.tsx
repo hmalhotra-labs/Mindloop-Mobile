@@ -1,28 +1,26 @@
 import React from 'react';
 
-// Simplified BottomSheet component for TDD testing
-interface BottomSheetProps {
+export interface BottomSheetProps {
   isVisible?: boolean;
   onDismiss?: () => void;
-  children?: React.ReactNode;
 }
 
-export const BottomSheet: React.FC<BottomSheetProps> = ({ isVisible = false, onDismiss }) => {
-  // Mock bottom sheet structure with navigation items
-  const navigationItems = [
-    { id: 'settings', label: 'Settings', icon: '⚙️' },
-    { id: 'sounds', label: 'Sounds', icon: '🔊' },
-    { id: 'history', label: 'History', icon: '📊' },
-    { id: 'profile', label: 'Profile', icon: '👤' }
-  ];
-
+export const BottomSheet: React.FC<BottomSheetProps> = ({
+  isVisible = true,
+  onDismiss
+}) => {
   if (!isVisible) {
     return null;
   }
 
-  return {
-    navigationItems,
-    isVisible,
-    onDismiss
-  };
+  return (
+    <div data-testid="bottom-sheet" data-visible={isVisible}>
+      <div data-testid="bottom-sheet-content">
+        <div data-testid="navigation-item-settings">⚙️ Settings</div>
+        <div data-testid="navigation-item-sounds">🔊 Sounds</div>
+        <div data-testid="navigation-item-history">📊 History</div>
+        <div data-testid="navigation-item-profile">👤 Profile</div>
+      </div>
+    </div>
+  );
 };

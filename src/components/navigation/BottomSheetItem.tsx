@@ -1,10 +1,28 @@
 import React from 'react';
 
-// Simplified BottomSheetItem component for TDD testing
-interface BottomSheetItemProps {
+export interface BottomSheetItemProps {
+  id: string;
+  label: string;
+  icon: string;
+  onPress?: () => void;
   children?: React.ReactNode;
 }
 
-export const BottomSheetItem: React.FC<BottomSheetItemProps> = () => {
-  return null;
+export const BottomSheetItem: React.FC<BottomSheetItemProps> = ({
+  id,
+  label,
+  icon,
+  onPress,
+  children
+}) => {
+  return (
+    <div
+      data-testid={`bottom-sheet-item-${id}`}
+      onClick={onPress}
+    >
+      <span data-testid="item-icon">{icon}</span>
+      <span data-testid="item-label">{label}</span>
+      {children}
+    </div>
+  );
 };

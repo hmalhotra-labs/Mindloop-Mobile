@@ -1,49 +1,44 @@
 import React from 'react';
 
-// Simplified testable navigation structure
+// Import existing screen components
+import { LoginScreen } from '../components/auth/LoginScreen';
+import { RegisterScreen } from '../components/auth/RegisterScreen';
+import { OnboardingFlow } from '../components/onboarding/OnboardingFlow';
+import { HomeScreen } from '../screens/HomeScreen';
+import { SettingsScreen } from '../screens/SettingsScreen';
+import { HistoryScreen } from '../screens/HistoryScreen';
+import { ProfileScreen } from '../screens/ProfileScreen';
+
 export interface NavigationScreen {
   name: string;
   component: React.ComponentType;
 }
 
-export interface NavigationState {
-  currentScreen: string;
-  screens: NavigationScreen[];
+export interface AppNavigatorProps {
+  initialRouteName?: string;
+  children?: React.ReactNode;
 }
 
-// Simplified AppNavigator for TDD testing
-interface AppNavigatorProps {
-  initialScreen?: string;
-  onScreenChange?: (screenName: string) => void;
-}
-
-export const AppNavigator = ({ 
-  initialScreen = 'Login',
-  onScreenChange 
-}: AppNavigatorProps): NavigationState => {
-  // Mock screen components for navigation
-  const LoginScreen = () => <div>Login Screen</div>;
-  const RegisterScreen = () => <div>Register Screen</div>;
-  const OnboardingScreen = () => <div>Onboarding Screen</div>;
-  const HomeScreen = () => <div>Home Screen</div>;
-
+// Navigation component structure for testing
+export const AppNavigator: React.FC<AppNavigatorProps> = ({
+  initialRouteName = 'Login',
+  children
+}) => {
+  // Define navigation screens
   const screens: NavigationScreen[] = [
     { name: 'Login', component: LoginScreen },
     { name: 'Register', component: RegisterScreen },
-    { name: 'Onboarding', component: OnboardingScreen },
-    { name: 'Home', component: HomeScreen }
+    { name: 'Onboarding', component: OnboardingFlow },
+    { name: 'Home', component: HomeScreen },
+    { name: 'Settings', component: SettingsScreen },
+    { name: 'History', component: HistoryScreen },
+    { name: 'Profile', component: ProfileScreen }
   ];
 
-  const navigationState: NavigationState = {
-    currentScreen: initialScreen,
-    screens
-  };
-
-  // Call screen change callback if provided
-  if (onScreenChange) {
-    onScreenChange(navigationState.currentScreen);
-  }
-
-  // Return navigation structure for testing
-  return navigationState;
+  // Return navigation structure (simulating NavigationContainer)
+  return (
+    <div data-testid="navigation-container" data-initial-route={initialRouteName}>
+      {children || <div data-testid="navigation-stack">App Navigator Ready</div>}
+    </div>
+  );
 };
