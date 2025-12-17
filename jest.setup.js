@@ -1,5 +1,28 @@
 // Jest setup file
 
+// Create a simple in-memory storage for AsyncStorage mock
+const storage = {};
+
+// Mock @react-native-async-storage/async-storage with in-memory storage
+jest.mock('@react-native-async-storage/async-storage', () => ({
+  getItem: jest.fn(async (key) => storage[key] || null),
+  setItem: jest.fn(async (key, value) => {
+    storage[key] = value;
+  }),
+  removeItem: jest.fn(async (key) => {
+    delete storage[key];
+  }),
+  clear: jest.fn(async () => {
+    Object.keys(storage).forEach(key => delete storage[key]);
+  }),
+  mergeItem: jest.fn(),
+  getAllKeys: jest.fn(async () => Object.keys(storage)),
+  multiGet: jest.fn(),
+  multiSet: jest.fn(),
+  multiRemove: jest.fn(),
+  multiMerge: jest.fn(),
+}));
+
 // Mock React Native modules
 jest.mock('react-native', () => {
   return {

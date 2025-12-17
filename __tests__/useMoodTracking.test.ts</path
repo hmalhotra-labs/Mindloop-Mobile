@@ -1,0 +1,42 @@
+import { useMoodTracking } from '../src/hooks/useMoodTracking';
+import { MoodOption, MoodCategory } from '../src/data/moodOptions';
+
+describe('useMoodTracking', () => {
+  test('should initialize with empty mood entries', () => {
+    const hook = useMoodTracking();
+    expect(hook.moodEntries).toEqual([]);
+    expect(hook.isLoading).toBe(false);
+  });
+
+  test('should handle mood selection', () => {
+    const hook = useMoodTracking();
+    const mockMood: MoodOption = {
+      id: 'good',
+      label: 'Good',
+      emoji: '😊',
+      category: MoodCategory.POSITIVE
+    };
+    
+    expect(() => {
+      hook.saveMood(mockMood, 'session1');
+    }).not.toThrow();
+  });
+
+  test('should handle mood skip', () => {
+    const hook = useMoodTracking();
+    
+    expect(() => {
+      hook.skipMood('session1');
+    }).not.toThrow();
+  });
+
+  test('should provide mood statistics', () => {
+    const hook = useMoodTracking();
+    const stats = hook.getMoodStats();
+    
+    expect(stats).toHaveProperty('totalEntries');
+    expect(stats).toHaveProperty('positiveCount');
+    expect(stats).toHaveProperty('negativeCount');
+    expect(stats).toHaveProperty('neutralCount');
+  });
+});
