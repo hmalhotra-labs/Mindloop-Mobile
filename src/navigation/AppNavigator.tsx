@@ -19,7 +19,7 @@ export interface AppNavigatorProps {
   children?: React.ReactNode;
 }
 
-// Navigation component structure for testing
+// Mock navigation component for testing
 export const AppNavigator: React.FC<AppNavigatorProps> = ({
   initialRouteName = 'Login',
   children

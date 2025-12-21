@@ -1,49 +1,56 @@
-// import React from 'react';
-// import { MoodCheckInScreen } from '../src/screens/MoodCheckInScreen';
-// import { MoodOption, MoodCategory } from '../src/data/moodOptions';
+import React from 'react';
+import { render, fireEvent, screen } from '@testing-library/react-native';
+import { MoodSelector } from '../src/components/mood/MoodSelector';
+import { MoodOption } from '../src/data/moodOptions';
 
-// describe('MoodCheckInScreen', () => {
-//   test('should render mood check-in screen', () => {
-//     const props = { sessionId: 'test-session-123' } as any;
-    
-//     expect(() => {
-//       MoodCheckInScreen(props);
-//     }).not.toThrow();
-//   });
+// Mock the mood service
+jest.mock('../src/services/moodService', () => ({
+  moodService: {
+    saveMoodEntry: jest.fn().mockResolvedValue(undefined),
+  },
+}));
 
-//   test('should handle mood selection callback', () => {
-//     const onMoodSelected = jest.fn();
-//     const props = {
-//       sessionId: 'test-session-123',
-//       onMoodSelected
-//     } as any;
-    
-//     expect(() => {
-//       MoodCheckInScreen(props);
-//     }).not.toThrow();
-//   });
+describe('MoodSelector', () => {
+  const mockOnMoodSelect = jest.fn();
+  const mockOnSkip = jest.fn();
 
-//   test('should handle skip callback', () => {
-//     const onSkip = jest.fn();
-//     const props = {
-//       sessionId: 'test-session-123',
-//       onSkip
-//     } as any;
-    
-//     expect(() => {
-//       MoodCheckInScreen(props);
-//     }).not.toThrow();
-//   });
+  const renderMoodSelector = (props = {}) => {
+    const defaultProps = {
+      onMoodSelect: mockOnMoodSelect,
+      onSkip: mockOnSkip,
+      selectedMoodId: undefined,
+      ...props,
+    };
 
-//   test('should handle navigation callback', () => {
-//     const onNavigate = jest.fn();
-//     const props = {
-//       sessionId: 'test-session-123',
-//       onNavigate
-//     } as any;
-    
-//     expect(() => {
-//       MoodCheckInScreen(props);
-//     }).not.toThrow();
-//   });
-// });
+    return render(<MoodSelector {...defaultProps} />);
+  };
+
+  it('renders correctly', () => {
+    renderMoodSelector();
+
+    expect(screen.getByText('How did this reset feel?')).toBeTruthy();
+    expect(screen.getByText('Choose the option that best matches your mood')).toBeTruthy();
+    expect(screen.getByText('Skip for now')).toBeTruthy();
+  });
+
+  it('allows mood selection', () => {
+    renderMoodSelector();
+
+    // Find and press one of the mood buttons
+    const moodButton = screen.getByText('Good');
+    fireEvent.press(moodButton);
+
+    // Verify the callback was called
+    expect(mockOnMoodSelect).toHaveBeenCalled();
+  });
+
+  it('allows skipping the mood check-in', () => {
+    renderMoodSelector();
+
+    const skipButton = screen.getByText('Skip for now');
+    fireEvent.press(skipButton);
+
+    // Verify the skip callback was called
+    expect(mockOnSkip).toHaveBeenCalled();
+  });
+});

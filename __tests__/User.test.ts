@@ -54,13 +54,24 @@ describe('User Model', () => {
     });
 
     it('should export UserPreferences interface', () => {
-      const preferences = new UserPreferences({
+      // UserPreferences is an interface, not a class, so we can't instantiate it
+      // Instead, we'll verify that the User class can accept UserPreferences
+      const userData = {
+        id: 1,
+        email: 'test@example.com',
+        name: 'Test User',
+        createdAt: new Date('2025-01-01'),
+        preferences: {
+          theme: 'light',
+          notifications: false
+        }
+      };
+
+      const user = new User(userData);
+      expect(user.preferences).toEqual({
         theme: 'light',
         notifications: false
       });
-
-      expect(preferences.theme).toBe('light');
-      expect(preferences.notifications).toBe(false);
     });
   });
 });

@@ -50,6 +50,14 @@ jest.mock('react-native', () => {
       removeItem: jest.fn(),
       clear: jest.fn(),
     },
+    NativeModules: {
+      SettingsManager: {
+        get: jest.fn(),
+      },
+    },
+    Settings: {
+      get: jest.fn(),
+    },
   };
 });
 

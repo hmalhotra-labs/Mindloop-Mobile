@@ -1,29 +1,12 @@
-import { moodService, MoodEntry } from '../src/services/moodService';
+import { moodService, MoodEntry, AsyncStorageToUse } from '../src/services/moodService';
 import { MoodOption, MoodCategory } from '../src/data/moodOptions';
-
-// Mock AsyncStorage
-const mockAsyncStorage = {
-  getItem: jest.fn(),
-  setItem: jest.fn(),
-  removeItem: jest.fn(),
-  clear: jest.fn(),
-};
-
-// Replace the mock in the service
-jest.mock('../src/services/moodService', () => {
-  const originalModule = jest.requireActual('../src/services/moodService');
-  return {
-    ...originalModule,
-    AsyncStorage: mockAsyncStorage,
-  };
-});
 
 describe('moodService', () => {
   beforeEach(() => {
     // Clear all mocks before each test
     jest.clearAllMocks();
-    mockAsyncStorage.getItem.mockResolvedValue(null);
-    mockAsyncStorage.setItem.mockResolvedValue(undefined);
+    (AsyncStorageToUse.getItem as jest.Mock).mockResolvedValue(null);
+    (AsyncStorageToUse.setItem as jest.Mock).mockResolvedValue(undefined);
   });
 
   describe('saveMoodEntry', () => {
@@ -38,11 +21,11 @@ describe('moodService', () => {
       const sessionId = 'session123';
       
       // Mock getItem to return empty array
-      mockAsyncStorage.getItem.mockResolvedValueOnce(null);
+      (AsyncStorageToUse.getItem as jest.Mock).mockResolvedValueOnce(null);
       
       await moodService.saveMoodEntry(mockMood, sessionId);
       
-      expect(mockAsyncStorage.setItem).toHaveBeenCalledWith(
+      expect(AsyncStorageToUse.setItem).toHaveBeenCalledWith(
         'mindloop_mood_entries',
         expect.stringContaining('"moodId":"good"')
       );
@@ -52,11 +35,11 @@ describe('moodService', () => {
       const sessionId = 'session123';
       
       // Mock getItem to return empty array
-      mockAsyncStorage.getItem.mockResolvedValueOnce(null);
+      (AsyncStorageToUse.getItem as jest.Mock).mockResolvedValueOnce(null);
       
       await moodService.saveMoodEntry(null, sessionId);
       
-      expect(mockAsyncStorage.setItem).toHaveBeenCalledWith(
+      expect(AsyncStorageToUse.setItem).toHaveBeenCalledWith(
         'mindloop_mood_entries',
         expect.stringContaining('"moodId":null')
       );
@@ -65,7 +48,7 @@ describe('moodService', () => {
 
   describe('getMoodEntries', () => {
     test('should return empty array when no entries exist', async () => {
-      mockAsyncStorage.getItem.mockResolvedValueOnce(null);
+      (AsyncStorageToUse.getItem as jest.Mock).mockResolvedValueOnce(null);
       
       const entries = await moodService.getMoodEntries();
       expect(entries).toHaveLength(0);
@@ -77,7 +60,7 @@ describe('moodService', () => {
         { id: '2', moodId: 'bad', sessionId: 'session2', timestamp: '2023-01-01T00:01:00.000Z' }
       ]);
       
-      mockAsyncStorage.getItem.mockResolvedValueOnce(mockEntries);
+      (AsyncStorageToUse.getItem as jest.Mock).mockResolvedValueOnce(mockEntries);
       
       const entries = await moodService.getMoodEntries();
       expect(entries).toHaveLength(2);
@@ -96,7 +79,7 @@ describe('moodService', () => {
         { id: '5', moodId: 'bad', sessionId: 'session5', timestamp: '2023-01-01T00:04:00.000Z' }
       ]);
       
-      mockAsyncStorage.getItem.mockResolvedValueOnce(mockEntries);
+      (AsyncStorageToUse.getItem as jest.Mock).mockResolvedValueOnce(mockEntries);
       
       const stats = await moodService.getMoodStats();
       

@@ -3,16 +3,6 @@ export interface UserPreferences {
   notifications: boolean;
 }
 
-export class UserPreferences {
-  theme: string;
-  notifications: boolean;
-
-  constructor(data: { theme: string; notifications: boolean }) {
-    this.theme = data.theme;
-    this.notifications = data.notifications;
-  }
-}
-
 export interface UserData {
   id: number;
   email: string;

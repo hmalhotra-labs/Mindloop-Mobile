@@ -19,18 +19,26 @@ export interface MoodStats {
 
 const STORAGE_KEY = 'mindloop_mood_entries';
 
-// Mock AsyncStorage for testing
-const AsyncStorage = {
+// Import AsyncStorage from React Native
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// Define AsyncStorage type for testing
+export const AsyncStorageForTesting = {
   getItem: jest.fn(),
   setItem: jest.fn(),
   removeItem: jest.fn(),
   clear: jest.fn(),
 };
 
+// Use actual AsyncStorage in production, mock in tests
+export const AsyncStorageToUse = (typeof jest !== 'undefined' && process.env.NODE_ENV === 'test')
+  ? AsyncStorageForTesting
+  : AsyncStorage;
+
 class MoodService {
   private async getStorageData(): Promise<MoodEntry[]> {
     try {
-      const data = await AsyncStorage.getItem(STORAGE_KEY);
+      const data = await AsyncStorageToUse.getItem(STORAGE_KEY);
       return data ? JSON.parse(data) : [];
     } catch (error) {
       console.error('Error reading from AsyncStorage:', error);
@@ -40,7 +48,7 @@ class MoodService {
 
   private async setStorageData(entries: MoodEntry[]): Promise<void> {
     try {
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+      await AsyncStorageToUse.setItem(STORAGE_KEY, JSON.stringify(entries));
     } catch (error) {
       console.error('Error writing to AsyncStorage:', error);
     }
