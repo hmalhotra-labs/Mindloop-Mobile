@@ -191,29 +191,35 @@ const useAudioPlayer = (): UseAudioPlayerReturn => {
 
   // Sync with AudioService state and time
   useEffect(() => {
-    const updateState = () => {
-      // Only sync when audio is playing to optimize performance
-      if (isPlayingRef.current && isMountedRef.current) {
-        syncWithService();
-      }
-    };
-    
-    // Update every 500ms - more frequent updates for better sync when playing
-    intervalIdRef.current = setInterval(updateState, 500);
+    try {
+      const updateState = () => {
+        // Only sync when audio is playing to optimize performance
+        if (isPlayingRef.current && isMountedRef.current) {
+          syncWithService();
+        }
+      };
+      
+      // Update every 1000ms (1 second) - reduced frequency to optimize performance
+      // This is more efficient than the previous 500ms interval
+      intervalIdRef.current = setInterval(updateState, 1000);
 
-    // Initialize state from service
-    syncWithService();
+      // Initialize state from service
+      syncWithService();
 
-    // Cleanup function - properly clear the interval
-    return () => {
-      if (intervalIdRef.current) {
-        clearInterval(intervalIdRef.current);
-        intervalIdRef.current = null;
-      }
-      // Don't stop the global audio service - it might be used by other components
-      // Just mark the component as unmounted to prevent further state updates
-      isMountedRef.current = false;
-    };
+      // Cleanup function - properly clear the interval
+      return () => {
+        if (intervalIdRef.current) {
+          clearInterval(intervalIdRef.current);
+          intervalIdRef.current = null;
+        }
+        // Don't stop the global audio service - it might be used by other components
+        // Just mark the component as unmounted to prevent further state updates
+        isMountedRef.current = false;
+      };
+    } catch (error) {
+      console.error('Error in useAudioPlayer useEffect:', error);
+      // Don't let errors in the effect break the hook
+    }
   }, []); // Empty dependency array to run only once
 
   return {

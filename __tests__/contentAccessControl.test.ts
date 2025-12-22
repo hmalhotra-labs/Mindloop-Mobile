@@ -11,12 +11,25 @@ describe('ContentAccessControl', () => {
   let contentAccessControl: ContentAccessControl;
   let subscriptionService: SubscriptionService;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     subscriptionService = new SubscriptionService();
     contentAccessControl = new ContentAccessControl(subscriptionService);
+    // Clear storage before each test
+    await subscriptionService.clearAllData();
+  });
+
+  afterEach(async () => {
+    // Clean up after each test
+    await subscriptionService.clearAllData();
   });
 
   describe('checkAccessToContent', () => {
+    beforeEach(async () => {
+      // Setup explicit subscriptions for testing upgrade scenarios
+      await subscriptionService.createSubscription(1001, 'basic_monthly');
+      await subscriptionService.createSubscription(1002, 'premium_monthly');
+    });
+
     it('should allow access to free content for free users', async () => {
       const content = new PremiumContent({
         id: 'free_breathing',
@@ -61,7 +74,7 @@ describe('ContentAccessControl', () => {
         isAvailable: true
       });
 
-      const result = await contentAccessControl.checkAccessToContent(1, content);
+      const result = await contentAccessControl.checkAccessToContent(1001, content);
       expect(result.hasAccess).toBe(true);
       expect(result.reason).toBe('Access granted');
     });
@@ -77,7 +90,7 @@ describe('ContentAccessControl', () => {
         isAvailable: true
       });
 
-      const result = await contentAccessControl.checkAccessToContent(1, content);
+      const result = await contentAccessControl.checkAccessToContent(1001, content);
       expect(result.hasAccess).toBe(false);
       expect(result.reason).toBe('Requires Premium subscription');
     });
@@ -93,7 +106,7 @@ describe('ContentAccessControl', () => {
         isAvailable: true
       });
 
-      const result = await contentAccessControl.checkAccessToContent(2, content);
+      const result = await contentAccessControl.checkAccessToContent(1002, content);
       expect(result.hasAccess).toBe(true);
       expect(result.reason).toBe('Access granted');
     });
@@ -116,6 +129,12 @@ describe('ContentAccessControl', () => {
   });
 
   describe('filterAccessibleContent', () => {
+    beforeEach(async () => {
+      // Setup explicit subscriptions for testing upgrade scenarios
+      await subscriptionService.createSubscription(1001, 'basic_monthly');
+      await subscriptionService.createSubscription(1002, 'premium_monthly');
+    });
+
     it('should filter content based on user subscription tier', async () => {
       const content = [
         new PremiumContent({
@@ -147,7 +166,7 @@ describe('ContentAccessControl', () => {
         })
       ];
 
-      const accessible = await contentAccessControl.filterAccessibleContent(1, content);
+      const accessible = await contentAccessControl.filterAccessibleContent(1001, content);
       expect(accessible).toHaveLength(2);
       expect(accessible.map(c => c.id)).toEqual(['free_content', 'basic_content']);
     });
@@ -181,6 +200,12 @@ describe('ContentAccessControl', () => {
   });
 
   describe('getContentUpgradeRecommendation', () => {
+    beforeEach(async () => {
+      // Setup explicit subscriptions for testing upgrade scenarios
+      await subscriptionService.createSubscription(1001, 'basic_monthly');
+      await subscriptionService.createSubscription(1002, 'premium_monthly');
+    });
+
     it('should recommend appropriate subscription for basic users wanting premium content', async () => {
       const content = new PremiumContent({
         id: 'premium_meditation',
@@ -192,7 +217,7 @@ describe('ContentAccessControl', () => {
         isAvailable: true
       });
 
-      const recommendation = await contentAccessControl.getContentUpgradeRecommendation(1, content);
+      const recommendation = await contentAccessControl.getContentUpgradeRecommendation(1001, content);
       expect(recommendation.shouldShowUpgrade).toBe(true);
       expect(recommendation.recommendedTier).toBe(SubscriptionTier.PREMIUM);
       expect(recommendation.message).toContain('Premium');
@@ -224,23 +249,29 @@ describe('ContentAccessControl', () => {
         isAvailable: true
       });
 
-      const recommendation = await contentAccessControl.getContentUpgradeRecommendation(2, content);
+      const recommendation = await contentAccessControl.getContentUpgradeRecommendation(1002, content);
       expect(recommendation.shouldShowUpgrade).toBe(false);
     });
   });
 
   describe('canAccessContentCategory', () => {
+    beforeEach(async () => {
+      // Setup explicit subscriptions for testing upgrade scenarios
+      await subscriptionService.createSubscription(1001, 'basic_monthly');
+      await subscriptionService.createSubscription(1002, 'premium_monthly');
+    });
+
     it('should allow access to all categories for premium users', async () => {
-      const canAccessBasic = await contentAccessControl.canAccessContentCategory(2, 'breathing');
-      const canAccessPremium = await contentAccessControl.canAccessContentCategory(2, 'premium');
+      const canAccessBasic = await contentAccessControl.canAccessContentCategory(1002, 'breathing');
+      const canAccessPremium = await contentAccessControl.canAccessContentCategory(1002, 'premium');
       
       expect(canAccessBasic).toBe(true);
       expect(canAccessPremium).toBe(true);
     });
 
     it('should restrict access based on tier for basic users', async () => {
-      const canAccessBasic = await contentAccessControl.canAccessContentCategory(1, 'breathing');
-      const canAccessPremium = await contentAccessControl.canAccessContentCategory(1, 'premium');
+      const canAccessBasic = await contentAccessControl.canAccessContentCategory(1001, 'breathing');
+      const canAccessPremium = await contentAccessControl.canAccessContentCategory(1001, 'premium');
       
       expect(canAccessBasic).toBe(true);
       expect(canAccessPremium).toBe(false);
@@ -256,10 +287,16 @@ describe('ContentAccessControl', () => {
   });
 
   describe('getContentAccessLevel', () => {
+    beforeEach(async () => {
+      // Setup explicit subscriptions for testing upgrade scenarios
+      await subscriptionService.createSubscription(1001, 'basic_monthly');
+      await subscriptionService.createSubscription(1002, 'premium_monthly');
+    });
+
     it('should return appropriate access level for different subscription tiers', async () => {
       const freeAccess = await contentAccessControl.getContentAccessLevel(999);
-      const basicAccess = await contentAccessControl.getContentAccessLevel(1);
-      const premiumAccess = await contentAccessControl.getContentAccessLevel(2);
+      const basicAccess = await contentAccessControl.getContentAccessLevel(1001);
+      const premiumAccess = await contentAccessControl.getContentAccessLevel(1002);
 
       expect(freeAccess.maxTier).toBe(SubscriptionTier.FREE);
       expect(freeAccess.canAccessCategory('free')).toBe(true);

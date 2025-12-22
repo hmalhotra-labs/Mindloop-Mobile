@@ -1,5 +1,8 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SubscriptionService } from '../src/services/subscriptionService';
 import { SubscriptionTier, SubscriptionStatus, SubscriptionPlan, Subscription } from '../src/models/subscription';
+
+jest.mock('@react-native-async-storage/async-storage');
 
 describe('SubscriptionService', () => {
   let subscriptionService: SubscriptionService;
@@ -155,6 +158,61 @@ describe('SubscriptionService', () => {
     it('should handle renewal of non-existent subscription', async () => {
       const renewed = await subscriptionService.renewSubscription('nonexistent_id');
       expect(renewed).toBe(false);
+    });
+  });
+
+  describe('AsyncStorage Sanitization - Issue 2 FIXED', () => {
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
+
+    it('should handle malformed JSON data gracefully (FIXED)', async () => {
+      // Arrange - Mock AsyncStorage to return malformed JSON
+      const malformedData = '{ "invalid": json, data: }';
+      (AsyncStorage.getItem as jest.Mock).mockResolvedValue(malformedData);
+
+      // Act & Assert - This should PASS with FIXED implementation
+      // The fixed code now uses try-catch validation around JSON.parse()
+      const result = await subscriptionService.getUserSubscription(1);
+      
+      // Should return null instead of crashing when data is malformed
+      expect(result).toBeNull();
+    });
+
+    it('should handle corrupted subscription data gracefully (FIXED)', async () => {
+      // Arrange - Mock corrupted subscription data
+      const corruptedData = JSON.stringify([
+        {
+          id: 'sub_1',
+          userId: 1,
+          plan: 'invalid_plan_data', // This should be an object
+          status: 'ACTIVE',
+          currentPeriodStart: 'not-a-date',
+          currentPeriodEnd: null,
+          cancelAtPeriodEnd: 'invalid_boolean'
+        }
+      ]);
+      
+      (AsyncStorage.getItem as jest.Mock).mockResolvedValue(corruptedData);
+
+      // Act & Assert - This should PASS with FIXED implementation
+      // The fixed code now validates data structure before using it
+      const result = await subscriptionService.getUserSubscription(1);
+      
+      // Should return null instead of crashing with invalid data
+      expect(result).toBeNull();
+    });
+
+    it('should handle invalid content data gracefully (FIXED)', async () => {
+      // Arrange - Mock invalid premium content data
+      const invalidContentData = 'not json at all';
+      (AsyncStorage.getItem as jest.Mock).mockResolvedValue(invalidContentData);
+
+      // Act & Assert - This should PASS with FIXED implementation
+      const result = await subscriptionService.checkContentAccess(1, 'test_content');
+      
+      // Should return false instead of crashing with invalid content data
+      expect(result).toBe(false);
     });
   });
 });

@@ -5,6 +5,7 @@ export interface SessionTimerState {
   remainingTime: number;
   isRunning: boolean;
   isPaused: boolean;
+  isCompleted: boolean;  // Add completed state
   start: (duration: number) => void;
   pause: () => void;
   resume: () => void;
@@ -16,6 +17,7 @@ export const useSessionTimer = (): SessionTimerState => {
   const [remainingTime, setRemainingTime] = useState(0);
   const [isRunning, setIsRunning] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
+  const [isCompleted, setIsCompleted] = useState(false);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -30,7 +32,14 @@ export const useSessionTimer = (): SessionTimerState => {
         setRemainingTime(sessionService.getRemainingTime());
         setIsRunning(sessionService.getState() === 'running');
         setIsPaused(sessionService.getState() === 'paused');
+        setIsCompleted(sessionService.getState() === 'completed');
       }, 1000);
+    } else {
+      // Sync state when not running as well (for completed/paused states)
+      setRemainingTime(sessionService.getRemainingTime());
+      setIsRunning(sessionService.getState() === 'running');
+      setIsPaused(sessionService.getState() === 'paused');
+      setIsCompleted(sessionService.getState() === 'completed');
     }
 
     return () => {
@@ -44,6 +53,7 @@ export const useSessionTimer = (): SessionTimerState => {
     setRemainingTime(sessionService.getRemainingTime());
     setIsRunning(sessionService.getState() === 'running');
     setIsPaused(sessionService.getState() === 'paused');
+    setIsCompleted(sessionService.getState() === 'completed');
   };
 
   const pause = () => {
@@ -52,6 +62,7 @@ export const useSessionTimer = (): SessionTimerState => {
     setRemainingTime(sessionService.getRemainingTime());
     setIsRunning(sessionService.getState() === 'running');
     setIsPaused(sessionService.getState() === 'paused');
+    setIsCompleted(sessionService.getState() === 'completed');
   };
 
   const resume = () => {
@@ -60,6 +71,7 @@ export const useSessionTimer = (): SessionTimerState => {
     setRemainingTime(sessionService.getRemainingTime());
     setIsRunning(sessionService.getState() === 'running');
     setIsPaused(sessionService.getState() === 'paused');
+    setIsCompleted(sessionService.getState() === 'completed');
   };
 
   const stop = () => {
@@ -68,12 +80,14 @@ export const useSessionTimer = (): SessionTimerState => {
     setRemainingTime(sessionService.getRemainingTime());
     setIsRunning(sessionService.getState() === 'running');
     setIsPaused(sessionService.getState() === 'paused');
+    setIsCompleted(sessionService.getState() === 'completed');
   };
 
   return {
     remainingTime,
     isRunning,
     isPaused,
+    isCompleted,
     start,
     pause,
     resume,

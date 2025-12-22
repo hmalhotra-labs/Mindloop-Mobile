@@ -1,5 +1,5 @@
-import { firebaseConfig } from '../config/firebase';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { firebaseAuth, getFirebaseErrorMessage } from '../config/firebase';
+import { secureStorage, SecurityValidator, SecureLogger } from '../utils/securityUtils';
 
 interface AuthResult {
   success: boolean;
@@ -23,13 +23,8 @@ export class AuthService {
    */
   private isValidPassword(password: string): boolean {
     // At least 8 characters, 1 uppercase, 1 lowercase, 1 number
-    // Allow special characters for testing purposes
+    // Allow special characters
     const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d@$!%*?&]{8,}$/;
-    
-    // For testing purposes, accept a simple test password
-    if (password === 'password123') {
-      return true;
-    }
     
     return passwordRegex.test(password);
   }
@@ -49,42 +44,40 @@ export class AuthService {
       }
 
       if (!this.isValidPassword(password)) {
-        return { 
-          success: false, 
-          error: 'Password must be at least 8 characters with 1 uppercase, 1 lowercase, and 1 number' 
+        return {
+          success: false,
+          error: 'Password must be at least 8 characters with 1 uppercase, 1 lowercase, and 1 number'
         };
       }
 
-      // In a real implementation, this would create the user with Firebase Auth
-      // For now, we'll just simulate the process
-      
-      // Check if the user already exists (simulated)
-      const existingUser = await this.getCurrentUser();
-      if (existingUser && existingUser.email === email) {
-        return { success: false, error: 'Email is already in use' };
-      }
+      // Create user with Firebase Auth
+      const userCredential = await firebaseAuth.createUserWithEmailAndPassword(email, password);
+      const user = userCredential.user;
 
-      // Create a mock user
-      this.currentUser = {
-        email,
-        id: 'user_' + Date.now(),
-        createdAt: new Date().toISOString()
-      };
-
-      // In a real implementation, we'd store this in Firebase
-      // For now, we'll just use AsyncStorage to simulate
+      // Store user data securely in storage for offline access
       try {
-        await AsyncStorage.setItem('mindloop_user', JSON.stringify(this.currentUser));
+        await secureStorage.setSecureItem('mindloop_user', {
+          email: user.email,
+          id: user.uid,
+          createdAt: user.metadata.creationTime || new Date().toISOString()
+        }, ['email', 'id', 'createdAt']);
+        SecureLogger.logSecurityEvent('user_data_stored', { userId: user.uid });
       } catch (storageError) {
-        console.error('Failed to store user data:', storageError);
+        SecureLogger.logError('Failed to store user data', storageError as Error);
       }
 
-      return { 
-        success: true, 
-        user: this.currentUser 
+      return {
+        success: true,
+        user: {
+          email: user.email,
+          id: user.uid,
+          createdAt: user.metadata.creationTime || new Date().toISOString()
+        }
       };
     } catch (error: any) {
-      return { success: false, error: error.message || 'Failed to create account' };
+      // Map Firebase errors to user-friendly messages
+      const errorMessage = getFirebaseErrorMessage(error.code) || error.message;
+      return { success: false, error: errorMessage };
     }
   }
 
@@ -102,30 +95,34 @@ export class AuthService {
         return { success: false, error: 'Invalid email format' };
       }
 
-      // In a real implementation, this would authenticate with Firebase
-      // For now, we'll simulate the process
-      
-      // In a real app, we'd check these credentials against Firebase
-      // For demo purposes, we'll accept any valid email/password
-      this.currentUser = {
-        email,
-        id: 'user_' + Date.now(),
-        lastLogin: new Date().toISOString()
-      };
+      // Sign in with Firebase Auth
+      const userCredential = await firebaseAuth.signInWithEmailAndPassword(email, password);
+      const user = userCredential.user;
 
-      // Store the current user in AsyncStorage
+      // Store user data securely in storage for offline access
       try {
-        await AsyncStorage.setItem('mindloop_user', JSON.stringify(this.currentUser));
+        await secureStorage.setSecureItem('mindloop_user', {
+          email: user.email,
+          id: user.uid,
+          lastLogin: new Date().toISOString()
+        }, ['email', 'id', 'lastLogin']);
+        SecureLogger.logSecurityEvent('user_login_data_stored', { userId: user.uid });
       } catch (storageError) {
-        console.error('Failed to store user data:', storageError);
+        SecureLogger.logError('Failed to store login data', storageError as Error);
       }
 
-      return { 
-        success: true, 
-        user: this.currentUser 
+      return {
+        success: true,
+        user: {
+          email: user.email,
+          id: user.uid,
+          lastLogin: new Date().toISOString()
+        }
       };
     } catch (error: any) {
-      return { success: false, error: error.message || 'Failed to sign in' };
+      // Map Firebase errors to user-friendly messages
+      const errorMessage = getFirebaseErrorMessage(error.code) || error.message;
+      return { success: false, error: errorMessage };
     }
   }
 
@@ -134,13 +131,15 @@ export class AuthService {
    */
   async logout(): Promise<void> {
     try {
+      await firebaseAuth.signOut();
       this.currentUser = null;
       
-      // Remove user data from AsyncStorage
+      // Remove user data from secure storage
       try {
-        await AsyncStorage.removeItem('mindloop_user');
+        await secureStorage.removeSecureItem('mindloop_user');
+        SecureLogger.logSecurityEvent('user_data_removed', { userId: this.currentUser?.id });
       } catch (storageError) {
-        console.error('Failed to remove user data:', storageError);
+        SecureLogger.logError('Failed to remove user data', storageError as Error);
       }
     } catch (error) {
       console.error('Logout error:', error);
@@ -157,15 +156,27 @@ export class AuthService {
       return this.currentUser;
     }
     
-    // Try to get from AsyncStorage
+    // Check Firebase Auth current user
+    const firebaseUser = firebaseAuth.currentUser;
+    if (firebaseUser) {
+      this.currentUser = {
+        email: firebaseUser.email,
+        id: firebaseUser.uid,
+        lastLogin: new Date().toISOString()
+      };
+      return this.currentUser;
+    }
+    
+    // Try to get from secure storage as fallback
     try {
-      const userData = await AsyncStorage.getItem('mindloop_user');
+      const userData = await secureStorage.getSecureItem('mindloop_user', ['email', 'id', 'lastLogin', 'createdAt']);
       if (userData) {
-        this.currentUser = JSON.parse(userData);
+        this.currentUser = userData;
+        SecureLogger.logSecurityEvent('user_data_retrieved_from_storage', { userId: userData.id });
         return this.currentUser;
       }
     } catch (storageError) {
-      console.error('Failed to retrieve user data:', storageError);
+      SecureLogger.logError('Failed to retrieve user data', storageError as Error);
     }
     
     return null;
@@ -175,7 +186,7 @@ export class AuthService {
    * Checks if user is authenticated
    */
   isAuthenticated(): boolean {
-    return this.currentUser !== null;
+    return firebaseAuth.currentUser !== null || this.currentUser !== null;
   }
 
   /**
@@ -191,15 +202,15 @@ export class AuthService {
         return { success: false, error: 'Invalid email format' };
       }
 
-      // In a real implementation, we'd use Firebase to send a password reset email
-      // For now, we'll just simulate the process
-      console.log(`Password reset email would be sent to: ${email}`);
+      // Use Firebase to send a password reset email
+      await firebaseAuth.sendPasswordResetEmail(email);
       
       return { success: true };
     } catch (error: any) {
-      return { 
-        success: false, 
-        error: error.message || 'Failed to send password reset email' 
+      const errorMessage = getFirebaseErrorMessage(error.code) || error.message;
+      return {
+        success: false,
+        error: errorMessage
       };
     }
   }

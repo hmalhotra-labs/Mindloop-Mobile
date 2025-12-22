@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, TextInput, Alert } from 'reac
 import { useSessionTimer } from '../../hooks/useSessionTimer';
 import { TimerDisplay } from './TimerDisplay';
 import { SessionControls } from './SessionControls';
+import { secondsToMinutes } from '../../utils/timeUtils';
 
 interface SessionScreenProps {
   onBack?: () => void;
@@ -13,6 +14,7 @@ export const SessionScreen: React.FC<SessionScreenProps> = ({ onBack }) => {
     remainingTime,
     isRunning,
     isPaused,
+    isCompleted,
     start,
     pause,
     resume,
@@ -21,12 +23,14 @@ export const SessionScreen: React.FC<SessionScreenProps> = ({ onBack }) => {
 
   const [customDuration, setCustomDuration] = useState('');
   const [showCustomInput, setShowCustomInput] = useState(false);
+  const [originalDuration, setOriginalDuration] = useState(0); // Track original session duration
 
   const handleDurationSelect = (duration: number) => {
     if (duration < 1 || duration > 7200) {
       Alert.alert('Invalid Duration', 'Please select a duration between 1 second and 2 hours.');
       return;
     }
+    setOriginalDuration(duration); // Store original duration for completion message
     start(duration);
   };
 
@@ -111,35 +115,46 @@ export const SessionScreen: React.FC<SessionScreenProps> = ({ onBack }) => {
     </View>
   );
 
-  const renderSessionComplete = () => (
-    <View style={styles.completionContainer}>
-      <Text style={styles.completionTitle}>Session Complete!</Text>
-      <Text style={styles.completionMessage}>
-        Great job! You've completed a {Math.floor((300 - remainingTime) / 60)} minute breathing session.
-      </Text>
-      <TouchableOpacity style={styles.newSessionButton} onPress={() => {
-        // Reset session state by calling onBack and letting parent handle reset
-        if (onBack) {
-          onBack();
-        }
-      }}>
-        <Text style={styles.newSessionButtonText}>Start New Session</Text>
-      </TouchableOpacity>
-    </View>
-  );
+  const renderSessionComplete = () => {
+    // Calculate actual completed duration based on original duration
+    // For completed sessions, the duration should be the original duration (in minutes)
+    const completedDuration = originalDuration > 0 ? secondsToMinutes(originalDuration) : 1;
+    const durationLabel = completedDuration === 1 ? 'minute' : 'minutes';
+    
+    return (
+      <View style={styles.completionContainer}>
+        <Text style={styles.completionTitle}>Session Complete!</Text>
+        <Text style={styles.completionMessage}>
+          Great job! You've completed a {completedDuration} {durationLabel} breathing session.
+        </Text>
+        <TouchableOpacity style={styles.newSessionButton} onPress={() => {
+          // Reset all session state variables for proper cleanup between sessions
+          setOriginalDuration(0); // Reset original duration
+          setCustomDuration(''); // Reset custom duration input
+          setShowCustomInput(false); // Hide custom input
+          if (onBack) {
+            onBack();
+          }
+        }}>
+          <Text style={styles.newSessionButtonText}>Start New Session</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  };
 
   const renderContent = () => {
-    if (remainingTime === 0 && !isRunning && !isPaused) {
-      return renderDurationSelection();
+    // Session completed - check for completed state first
+    if (isCompleted) {
+      return renderSessionComplete();
     }
     
     if (isRunning || isPaused) {
       return renderSessionActive();
     }
     
-    // Session completed
-    if (remainingTime === 0 && (isRunning === false && isPaused === false)) {
-      return renderSessionComplete();
+    // Not started - show duration selection
+    if (remainingTime === 0 && !isRunning && !isPaused && !isCompleted) {
+      return renderDurationSelection();
     }
     
     return renderDurationSelection();

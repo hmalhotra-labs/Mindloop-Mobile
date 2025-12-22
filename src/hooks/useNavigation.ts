@@ -1,12 +1,3 @@
-// Simplified useNavigation hook for TDD testing
-interface NavigationObject {
-  navigate: (screen: string, params?: any) => void;
-  goBack: () => void;
-}
-
-export const useNavigation = (): NavigationObject => {
-  return {
-    navigate: () => {},
-    goBack: () => {},
-  };
-};
+// Re-export useNavigation from AppNavigator to ensure single source of truth
+export { useNavigation } from '../navigation/AppNavigator';
+export type { NavigationContextType } from '../navigation/AppNavigator';

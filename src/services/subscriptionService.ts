@@ -1,4 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { secureStorage, SecureLogger } from '../utils/securityUtils';
 import {
   SubscriptionTier,
   SubscriptionStatus,
@@ -75,16 +75,16 @@ class SubscriptionService {
 
   private async loadFromStorage(): Promise<void> {
     try {
-      // Load premium content
-      const contentData = await AsyncStorage.getItem(PREMIUM_CONTENT_STORAGE_KEY);
+      // Load premium content securely
+      const contentData = await secureStorage.getSecureItem(PREMIUM_CONTENT_STORAGE_KEY, ['id', 'name', 'requiredTier', 'isAvailable']);
       if (!contentData) {
         // Initialize with empty array if no content exists
-        await AsyncStorage.setItem(PREMIUM_CONTENT_STORAGE_KEY, JSON.stringify([]));
+        await secureStorage.setSecureItem(PREMIUM_CONTENT_STORAGE_KEY, [], ['id', 'name', 'requiredTier', 'isAvailable']);
       }
     } catch (error) {
-      console.error('Error loading subscription data from storage:', error);
+      SecureLogger.logError('Error loading subscription data from storage', error as Error);
       // Initialize with empty array in case of error
-      await AsyncStorage.setItem(PREMIUM_CONTENT_STORAGE_KEY, JSON.stringify([]));
+      await secureStorage.setSecureItem(PREMIUM_CONTENT_STORAGE_KEY, [], ['id', 'name', 'requiredTier', 'isAvailable']);
     }
   }
 
@@ -97,11 +97,29 @@ class SubscriptionService {
     await this.ensureInitialized();
     
     try {
-      const subscriptionsData = await AsyncStorage.getItem(SUBSCRIPTION_STORAGE_KEY);
-      let subscriptions: SubscriptionData[] = [];
+      console.log('About to retrieve subscriptions for user', userId);
+      const subscriptionsData = await secureStorage.getSecureItem(SUBSCRIPTION_STORAGE_KEY, ['id', 'userId', 'plan', 'status', 'currentPeriodStart', 'currentPeriodEnd', 'cancelAtPeriodEnd']);
+      console.log('Retrieved subscriptionsData:', subscriptionsData);
       
-      if (subscriptionsData) {
-        subscriptions = JSON.parse(subscriptionsData);
+      let subscriptions: any[] = [];
+      
+      if (subscriptionsData && Array.isArray(subscriptionsData)) {
+        try {
+          subscriptions = subscriptionsData;
+          console.log('Successfully parsed subscriptions array with', subscriptions.length, 'items');
+          // Validate that subscriptions is an array
+          if (!Array.isArray(subscriptions)) {
+            console.warn('subscriptions is not an array:', typeof subscriptions);
+            SecureLogger.logSecurityEvent('Invalid subscriptions data format detected', { action: 'reset_to_empty_array' });
+            subscriptions = [];
+          }
+        } catch (parseError) {
+          console.error('Failed to parse subscriptions data:', parseError);
+          SecureLogger.logError('Failed to parse subscriptions data', parseError as Error);
+          subscriptions = [];
+        }
+      } else {
+        console.log('subscriptionsData is falsy or not an array:', subscriptionsData);
       }
       
       // Find the subscription for the given user
@@ -111,22 +129,90 @@ class SubscriptionService {
         return null; // Return null if no subscription exists
       }
 
-      // Check if subscription has expired
-      const now = new Date();
-      if (new Date(userSubscriptionData.currentPeriodEnd) < now && userSubscriptionData.status === SubscriptionStatus.ACTIVE) {
-        // Update status to expired
-        userSubscriptionData.status = SubscriptionStatus.EXPIRED;
-        await this.updateSubscription(userSubscriptionData.id, { status: SubscriptionStatus.EXPIRED });
+      // Validate subscription data structure before using it
+      try {
+        // Add debug logging to see what we're getting
+        console.log('Retrieved subscription data for user', userId, ':', userSubscriptionData);
+        
+        // Check required fields exist and have correct types
+        if (!userSubscriptionData.id || typeof userSubscriptionData.id !== 'string') {
+          console.warn('Invalid subscription data: missing or invalid id');
+          return null;
+        }
+        if (userSubscriptionData.userId === undefined || userSubscriptionData.userId === null || typeof userSubscriptionData.userId !== 'number') {
+          console.warn('Invalid subscription data: missing or invalid userId');
+          return null;
+        }
+        if (!userSubscriptionData.plan || typeof userSubscriptionData.plan !== 'object') {
+          console.warn('Invalid subscription data: missing or invalid plan');
+          return null;
+        }
+        if (!userSubscriptionData.status || !Object.values(SubscriptionStatus).includes(userSubscriptionData.status)) {
+          console.warn('Invalid subscription data: missing or invalid status');
+          return null;
+        }
+        // For dates, be more permissive - they could be Date objects or ISO strings
+        let currentPeriodStart: Date | null = null;
+        let currentPeriodEnd: Date | null = null;
+        
+        try {
+          if (userSubscriptionData.currentPeriodStart instanceof Date) {
+            currentPeriodStart = userSubscriptionData.currentPeriodStart;
+          } else if (typeof userSubscriptionData.currentPeriodStart === 'string') {
+            currentPeriodStart = new Date(userSubscriptionData.currentPeriodStart);
+          } else {
+            // Try to convert from whatever it is
+            currentPeriodStart = new Date(userSubscriptionData.currentPeriodStart);
+          }
+          
+          if (userSubscriptionData.currentPeriodEnd instanceof Date) {
+            currentPeriodEnd = userSubscriptionData.currentPeriodEnd;
+          } else if (typeof userSubscriptionData.currentPeriodEnd === 'string') {
+            currentPeriodEnd = new Date(userSubscriptionData.currentPeriodEnd);
+          } else {
+            // Try to convert from whatever it is
+            currentPeriodEnd = new Date(userSubscriptionData.currentPeriodEnd);
+          }
+        } catch (dateError) {
+          console.warn('Invalid subscription data: date parsing error', dateError);
+          return null;
+        }
+        
+        if (!currentPeriodStart || isNaN(currentPeriodStart.getTime())) {
+          console.warn('Invalid subscription data: missing or invalid currentPeriodStart');
+          return null;
+        }
+        if (!currentPeriodEnd || isNaN(currentPeriodEnd.getTime())) {
+          console.warn('Invalid subscription data: missing or invalid currentPeriodEnd');
+          return null;
+        }
+        
+        console.log('Successfully validated subscription data for user', userId);
+
+        // Check if subscription has expired
+        const now = new Date();
+        if (new Date(userSubscriptionData.currentPeriodEnd) < now && userSubscriptionData.status === SubscriptionStatus.ACTIVE) {
+          // Update status to expired
+          await this.updateSubscription(userSubscriptionData.id, { status: SubscriptionStatus.EXPIRED });
+          userSubscriptionData.status = SubscriptionStatus.EXPIRED;
+        }
+
+        // Convert date strings back to Date objects and reconstruct the subscription
+        const subscriptionData: SubscriptionData = {
+          id: userSubscriptionData.id,
+          userId: userSubscriptionData.userId,
+          plan: new SubscriptionPlan(userSubscriptionData.plan),
+          status: userSubscriptionData.status,
+          currentPeriodStart: currentPeriodStart,
+          currentPeriodEnd: currentPeriodEnd,
+          cancelAtPeriodEnd: userSubscriptionData.cancelAtPeriodEnd
+        };
+
+        return new Subscription(subscriptionData);
+      } catch (validationError) {
+        console.error('Invalid subscription data structure:', validationError);
+        return null; // Return null for corrupted data
       }
-
-      // Convert date strings back to Date objects
-      const subscriptionData: SubscriptionData = {
-        ...userSubscriptionData,
-        currentPeriodStart: new Date(userSubscriptionData.currentPeriodStart),
-        currentPeriodEnd: new Date(userSubscriptionData.currentPeriodEnd),
-      };
-
-      return new Subscription(subscriptionData);
     } catch (error) {
       console.error('Error getting user subscription:', error);
       throw new Error('Failed to retrieve user subscription');
@@ -179,15 +265,15 @@ class SubscriptionService {
 
   private async saveSubscription(subscription: Subscription): Promise<void> {
     try {
-      const subscriptionsData = await AsyncStorage.getItem(SUBSCRIPTION_STORAGE_KEY);
-      let subscriptions: SubscriptionData[] = [];
+      const subscriptionsData = await secureStorage.getSecureItem(SUBSCRIPTION_STORAGE_KEY, ['id', 'userId', 'plan', 'status', 'currentPeriodStart', 'currentPeriodEnd', 'cancelAtPeriodEnd']);
+      let subscriptions: any[] = [];
       
-      if (subscriptionsData) {
-        subscriptions = JSON.parse(subscriptionsData);
+      if (subscriptionsData && Array.isArray(subscriptionsData)) {
+        subscriptions = subscriptionsData;
       }
 
-      // Convert the subscription to plain object
-      const subscriptionData: SubscriptionData = {
+      // Convert the subscription to plain object, ensuring dates are stored as ISO strings
+      const subscriptionData = {
         id: subscription.id,
         userId: subscription.userId,
         plan: {
@@ -201,8 +287,8 @@ class SubscriptionService {
           isActive: subscription.plan.isActive
         },
         status: subscription.status,
-        currentPeriodStart: subscription.currentPeriodStart,
-        currentPeriodEnd: subscription.currentPeriodEnd,
+        currentPeriodStart: subscription.currentPeriodStart.toISOString(),
+        currentPeriodEnd: subscription.currentPeriodEnd.toISOString(),
         cancelAtPeriodEnd: subscription.cancelAtPeriodEnd
       };
 
@@ -214,9 +300,10 @@ class SubscriptionService {
         subscriptions.push(subscriptionData);
       }
 
-      await AsyncStorage.setItem(SUBSCRIPTION_STORAGE_KEY, JSON.stringify(subscriptions));
+      await secureStorage.setSecureItem(SUBSCRIPTION_STORAGE_KEY, subscriptions, ['id', 'userId', 'plan', 'status', 'currentPeriodStart', 'currentPeriodEnd', 'cancelAtPeriodEnd']);
+      SecureLogger.logSecurityEvent('subscription_saved', { subscriptionId: subscription.id, userId: subscription.userId });
     } catch (error) {
-      console.error('Error saving subscription:', error);
+      SecureLogger.logError('Error saving subscription', error as Error);
       throw new Error('Failed to save subscription');
     }
   }
@@ -226,12 +313,12 @@ class SubscriptionService {
     await this.ensureInitialized();
     
     try {
-      const subscriptionsData = await AsyncStorage.getItem(SUBSCRIPTION_STORAGE_KEY);
+      const subscriptionsData = await secureStorage.getSecureItem(SUBSCRIPTION_STORAGE_KEY, ['id', 'userId', 'plan', 'status', 'currentPeriodStart', 'currentPeriodEnd', 'cancelAtPeriodEnd']);
       if (!subscriptionsData) {
         return false;
       }
 
-      const subscriptions: SubscriptionData[] = JSON.parse(subscriptionsData);
+      const subscriptions: any[] = Array.isArray(subscriptionsData) ? subscriptionsData : [];
       const subscriptionIndex = subscriptions.findIndex(sub => sub.id === subscriptionId);
       
       if (subscriptionIndex === -1) {
@@ -242,10 +329,11 @@ class SubscriptionService {
       subscriptions[subscriptionIndex].status = SubscriptionStatus.CANCELED;
       subscriptions[subscriptionIndex].cancelAtPeriodEnd = true;
 
-      await AsyncStorage.setItem(SUBSCRIPTION_STORAGE_KEY, JSON.stringify(subscriptions));
+      await secureStorage.setSecureItem(SUBSCRIPTION_STORAGE_KEY, subscriptions, ['id', 'userId', 'plan', 'status', 'currentPeriodStart', 'currentPeriodEnd', 'cancelAtPeriodEnd']);
+      SecureLogger.logSecurityEvent('subscription_cancelled', { subscriptionId });
       return true;
     } catch (error) {
-      console.error('Error cancelling subscription:', error);
+      SecureLogger.logError('Error cancelling subscription', error as Error);
       return false;
     }
   }
@@ -264,23 +352,35 @@ class SubscriptionService {
         requiredTier = SubscriptionTier.PREMIUM;
       } else {
         // For other content IDs, try to load from storage
-        const contentData = await AsyncStorage.getItem(PREMIUM_CONTENT_STORAGE_KEY);
+        const contentData = await secureStorage.getSecureItem(PREMIUM_CONTENT_STORAGE_KEY, ['id', 'name', 'requiredTier', 'isAvailable']);
         if (!contentData) {
           return false;
         }
 
-        const contents: PremiumContentData[] = JSON.parse(contentData);
-        const content = contents.find(c => c.id === contentId);
-        
-        if (!content || !content.isAvailable) {
+        try {
+          const contents: PremiumContentData[] = Array.isArray(contentData) ? contentData : [];
+          // Validate that contents is an array
+          if (!Array.isArray(contents)) {
+            SecureLogger.logSecurityEvent('Invalid content data format detected', { action: 'denying_access' });
+            return false;
+          }
+          
+          const content = contents.find(c => c.id === contentId);
+          
+          if (!content || !content.isAvailable) {
+            return false;
+          }
+          
+          requiredTier = content.requiredTier;
+        } catch (parseError) {
+          console.error('Failed to parse content data:', parseError);
           return false;
         }
-        
-        requiredTier = content.requiredTier;
       }
 
-      const subscription = await this.getUserSubscriptionWithDefault(userId);
+      const subscription = await this.getUserSubscription(userId);
       if (!subscription) {
+        // For users without a subscription, only allow access to FREE tier content
         return requiredTier === SubscriptionTier.FREE;
       }
 
@@ -300,22 +400,29 @@ class SubscriptionService {
       return subscription;
     }
     
-    // For test purposes, create specific subscriptions for test user IDs
-    // User 1 = BASIC, User 2 = PREMIUM, others = FREE
-    if (userId === 1) {
-      return await this.createDefaultSubscription(userId, SubscriptionTier.BASIC);
-    } else if (userId === 2) {
-      return await this.createDefaultSubscription(userId, SubscriptionTier.PREMIUM);
-    } else {
-      // Create a default free subscription if none exists
-      return await this.createDefaultFreeSubscription(userId);
+    // Only create a default free subscription if explicitly needed
+    // For testing purposes, we should not auto-create subscriptions
+    return null;
+  }
+  
+  async getOrCreateUserSubscription(userId: number): Promise<Subscription> {
+    await this.ensureInitialized();
+    
+    // First try to get the actual subscription
+    const subscription = await this.getUserSubscription(userId);
+    if (subscription) {
+      return subscription;
     }
+    
+    // Create a default free subscription if none exists
+    // Production behavior: All users start with FREE tier
+    return await this.createDefaultFreeSubscription(userId);
   }
 
   async getUserSubscriptionTier(userId: number): Promise<SubscriptionTier> {
     await this.ensureInitialized();
     
-    const subscription = await this.getUserSubscriptionWithDefault(userId);
+    const subscription = await this.getUserSubscription(userId);
     return subscription ? subscription.plan.tier : SubscriptionTier.FREE;
   }
 
@@ -323,12 +430,12 @@ class SubscriptionService {
     await this.ensureInitialized();
     
     try {
-      const subscriptionsData = await AsyncStorage.getItem(SUBSCRIPTION_STORAGE_KEY);
+      const subscriptionsData = await secureStorage.getSecureItem(SUBSCRIPTION_STORAGE_KEY, ['id', 'userId', 'plan', 'status', 'currentPeriodStart', 'currentPeriodEnd', 'cancelAtPeriodEnd']);
       if (!subscriptionsData) {
         return false;
       }
 
-      const subscriptions: SubscriptionData[] = JSON.parse(subscriptionsData);
+      const subscriptions: any[] = Array.isArray(subscriptionsData) ? subscriptionsData : [];
       const subscription = subscriptions.find(sub => sub.id === subscriptionId);
       
       if (!subscription) {
@@ -349,12 +456,12 @@ class SubscriptionService {
     await this.ensureInitialized();
     
     try {
-      const subscriptionsData = await AsyncStorage.getItem(SUBSCRIPTION_STORAGE_KEY);
+      const subscriptionsData = await secureStorage.getSecureItem(SUBSCRIPTION_STORAGE_KEY, ['id', 'userId', 'plan', 'status', 'currentPeriodStart', 'currentPeriodEnd', 'cancelAtPeriodEnd']);
       if (!subscriptionsData) {
         return null;
       }
 
-      const subscriptions: SubscriptionData[] = JSON.parse(subscriptionsData);
+      const subscriptions: any[] = Array.isArray(subscriptionsData) ? subscriptionsData : [];
       const subscriptionIndex = subscriptions.findIndex(sub => sub.id === subscriptionId);
       
       if (subscriptionIndex === -1) {
@@ -366,29 +473,58 @@ class SubscriptionService {
         subscriptions[subscriptionIndex].status = updateData.status;
       }
       if (updateData.currentPeriodStart !== undefined) {
-        subscriptions[subscriptionIndex].currentPeriodStart = new Date(updateData.currentPeriodStart);
+        // Handle date conversion - it might be a Date object or ISO string
+        if (updateData.currentPeriodStart instanceof Date) {
+          subscriptions[subscriptionIndex].currentPeriodStart = updateData.currentPeriodStart.toISOString();
+        } else if (typeof updateData.currentPeriodStart === 'string') {
+          subscriptions[subscriptionIndex].currentPeriodStart = updateData.currentPeriodStart;
+        } else {
+          // If it's neither, try to create a date from it
+          subscriptions[subscriptionIndex].currentPeriodStart = new Date(updateData.currentPeriodStart).toISOString();
+        }
       }
       if (updateData.currentPeriodEnd !== undefined) {
-        subscriptions[subscriptionIndex].currentPeriodEnd = new Date(updateData.currentPeriodEnd);
+        // Handle date conversion - it might be a Date object or ISO string
+        if (updateData.currentPeriodEnd instanceof Date) {
+          subscriptions[subscriptionIndex].currentPeriodEnd = updateData.currentPeriodEnd.toISOString();
+        } else if (typeof updateData.currentPeriodEnd === 'string') {
+          subscriptions[subscriptionIndex].currentPeriodEnd = updateData.currentPeriodEnd;
+        } else {
+          // If it's neither, try to create a date from it
+          subscriptions[subscriptionIndex].currentPeriodEnd = new Date(updateData.currentPeriodEnd).toISOString();
+        }
       }
       if (updateData.cancelAtPeriodEnd !== undefined) {
         subscriptions[subscriptionIndex].cancelAtPeriodEnd = updateData.cancelAtPeriodEnd;
       }
-      if (updateData.plan !== undefined) {
+      if (updateData.plan !== undefined && updateData.plan.id) {
         // If a new plan is provided, update the subscription's plan
         const newPlan = this.availablePlans.find(p => p.id === updateData.plan?.id);
         if (newPlan) {
-          subscriptions[subscriptionIndex].plan = newPlan;
+          subscriptions[subscriptionIndex].plan = {
+            id: newPlan.id,
+            name: newPlan.name,
+            tier: newPlan.tier,
+            price: newPlan.price,
+            currency: newPlan.currency,
+            billingPeriod: newPlan.billingPeriod,
+            features: newPlan.features,
+            isActive: newPlan.isActive
+          };
         }
       }
 
-      await AsyncStorage.setItem(SUBSCRIPTION_STORAGE_KEY, JSON.stringify(subscriptions));
+      await secureStorage.setSecureItem(SUBSCRIPTION_STORAGE_KEY, subscriptions, ['id', 'userId', 'plan', 'status', 'currentPeriodStart', 'currentPeriodEnd', 'cancelAtPeriodEnd']);
       
-      // Convert date strings back to Date objects
+      // Convert date strings back to Date objects and reconstruct the subscription
       const subscriptionData: SubscriptionData = {
-        ...subscriptions[subscriptionIndex],
+        id: subscriptions[subscriptionIndex].id,
+        userId: subscriptions[subscriptionIndex].userId,
+        plan: new SubscriptionPlan(subscriptions[subscriptionIndex].plan),
+        status: subscriptions[subscriptionIndex].status,
         currentPeriodStart: new Date(subscriptions[subscriptionIndex].currentPeriodStart),
         currentPeriodEnd: new Date(subscriptions[subscriptionIndex].currentPeriodEnd),
+        cancelAtPeriodEnd: subscriptions[subscriptionIndex].cancelAtPeriodEnd
       };
 
       return new Subscription(subscriptionData);
@@ -403,12 +539,12 @@ class SubscriptionService {
     
     try {
       // First get the current subscription to access its plan
-      const allSubscriptionsData = await AsyncStorage.getItem(SUBSCRIPTION_STORAGE_KEY);
+      const allSubscriptionsData = await secureStorage.getSecureItem(SUBSCRIPTION_STORAGE_KEY, ['id', 'userId', 'plan', 'status', 'currentPeriodStart', 'currentPeriodEnd', 'cancelAtPeriodEnd']);
       if (!allSubscriptionsData) {
         return false;
       }
 
-      const allSubscriptions: SubscriptionData[] = JSON.parse(allSubscriptionsData);
+      const allSubscriptions: any[] = Array.isArray(allSubscriptionsData) ? allSubscriptionsData : [];
       const subscriptionData = allSubscriptions.find(sub => sub.id === subscriptionId);
       
       if (!subscriptionData) {
@@ -530,12 +666,13 @@ class SubscriptionService {
 
   async clearAllData(): Promise<void> {
     try {
-      await AsyncStorage.removeItem(SUBSCRIPTION_STORAGE_KEY);
-      await AsyncStorage.removeItem(PREMIUM_CONTENT_STORAGE_KEY);
+      await secureStorage.removeSecureItem(SUBSCRIPTION_STORAGE_KEY);
+      await secureStorage.removeSecureItem(PREMIUM_CONTENT_STORAGE_KEY);
       // Don't remove plans as they're static
       this.initialized = false;
+      SecureLogger.logSecurityEvent('subscription_data_cleared', { action: 'all_data_removed' });
     } catch (error) {
-      console.error('Error clearing subscription data:', error);
+      SecureLogger.logError('Error clearing subscription data', error as Error);
     }
   }
 }

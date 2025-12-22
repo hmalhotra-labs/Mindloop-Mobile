@@ -63,23 +63,24 @@ describe('AudioControls', () => {
     const pauseButton = screen.getByTestId('pause-button');
     const stopButton = screen.getByTestId('stop-button');
     
-    expect(playButton.props.disabled).toBe(true);
-    expect(pauseButton.props.disabled).toBe(true);
-    expect(stopButton.props.disabled).toBe(true);
+    // Check disabled prop accessibility in React Native environment
+    expect(playButton.props.accessibilityState.disabled).toBe(true);
+    expect(pauseButton.props.accessibilityState.disabled).toBe(true);
+    expect(stopButton.props.accessibilityState.disabled).toBe(true);
   });
 
   test('play button is disabled when isPlaying is true', () => {
     render(<AudioControls {...defaultProps} isPlaying={true} />);
     
     const playButton = screen.getByTestId('play-button');
-    expect(playButton.props.disabled).toBe(true);
+    expect(playButton.props.accessibilityState.disabled).toBe(true);
   });
 
   test('pause button is disabled when isPlaying is false', () => {
     render(<AudioControls {...defaultProps} isPlaying={false} />);
     
     const pauseButton = screen.getByTestId('pause-button');
-    expect(pauseButton.props.disabled).toBe(true);
+    expect(pauseButton.props.accessibilityState.disabled).toBe(true);
   });
 
   test('volume slider calls onVolumeChange when interacted with', () => {

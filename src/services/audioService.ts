@@ -1,21 +1,21 @@
 // Audio service for Mindloop mindfulness app
 // Handles ambient sound playback, volume control, and sound mixing
 import { ambientSounds } from '../data/ambientSounds';
+import { audioFileManager, AudioLoadOptions } from './audioFileManager';
 
 // Constants for audio service configuration
 const UPDATE_INTERVAL_MS = 100; // Update every 100ms for more accurate timing
 const DEFAULT_VOLUME = 0.5;
 
-// For React Native, we would typically use react-native-sound or react-native-track-player
-// For now, we'll create a more realistic mock that simulates the actual audio functionality
+// For React Native, we would typically use react-native-track-player or react-native-sound
+// For now, we'll create a realistic mock that simulates the actual audio functionality
 class AudioServiceInstance {
   private playingSounds: Map<string, { isPlaying: boolean; volume: number; duration: number; currentTime: number }> = new Map();
   private globalVolume: number = DEFAULT_VOLUME;
   private currentSound: string | null = null;
   private intervalId: NodeJS.Timeout | null = null;
-  private isUpdating: boolean = false; // Flag to prevent race conditions during updates
 
-  async play(soundId: string, volume: number = DEFAULT_VOLUME): Promise<boolean> {
+  async play(soundId: string, volume: number = DEFAULT_VOLUME, options?: AudioLoadOptions): Promise<boolean> {
     try {
       // Validate volume parameter
       if (volume < 0 || volume > 1) {
@@ -28,14 +28,20 @@ class AudioServiceInstance {
         return false;
       }
 
-      // Simulate loading an audio file and setting its properties
-      const duration = sound.duration; // Use actual duration from sound data
+      // Load audio file using the file manager
+      const audioMetadata = await audioFileManager.loadAudioFile(soundId, sound.filePath, options);
+
+      // ISSUE: Previous implementation removed previous sounds, preventing mixing
+      // FIX: Add new sound without removing existing ones to support sound mixing
       this.playingSounds.set(soundId, {
         isPlaying: true,
         volume: Math.min(1, Math.max(0, volume)),
-        duration,
+        duration: audioMetadata.duration,
         currentTime: 0
       });
+      
+      // Update currentSound to track the most recently played sound
+      // This maintains backward compatibility while enabling multiple sounds
       this.currentSound = soundId;
       
       // Start a timer to simulate audio playback progress if not already running
@@ -54,14 +60,17 @@ class AudioServiceInstance {
 
   pause(): boolean {
     try {
-      if (this.currentSound) {
-        const soundData = this.playingSounds.get(this.currentSound);
-        if (soundData) {
-          this.playingSounds.set(this.currentSound, { ...soundData, isPlaying: false });
-          return true;
+      let pausedAny = false;
+      
+      // Pause all currently playing sounds
+      for (const [soundId, data] of this.playingSounds) {
+        if (data.isPlaying) {
+          this.playingSounds.set(soundId, { ...data, isPlaying: false });
+          pausedAny = true;
         }
       }
-      return false;
+      
+      return pausedAny;
     } catch (error) {
       console.error('Error in AudioService.pause:', error);
       return false;
@@ -70,9 +79,41 @@ class AudioServiceInstance {
 
   stop(): boolean {
     try {
-      if (this.currentSound) {
-        this.playingSounds.delete(this.currentSound);
-        this.currentSound = null;
+      // For backward compatibility, stop all sounds when stop() is called
+      // This maintains the original behavior where stop() would clear all sounds
+      this.playingSounds.clear();
+      this.currentSound = null;
+      
+      // Clear the interval if running
+      if (this.intervalId) {
+        clearInterval(this.intervalId);
+        this.intervalId = null;
+      }
+      return true;
+    } catch (error) {
+      console.error('Error in AudioService.stop:', error);
+      return false;
+    }
+  }
+  
+  /**
+   * Stop a specific sound by ID
+   */
+  stopSound(soundId: string): boolean {
+    try {
+      if (this.playingSounds.has(soundId)) {
+        this.playingSounds.delete(soundId);
+        
+        // If we stopped the current sound, update currentSound
+        if (this.currentSound === soundId) {
+          const remainingSounds = Array.from(this.playingSounds.keys());
+          if (remainingSounds.length > 0) {
+            // Set currentSound to the first remaining sound
+            this.currentSound = remainingSounds[0];
+          } else {
+            this.currentSound = null;
+          }
+        }
         
         // Clear the interval if no sounds are playing
         if (this.playingSounds.size === 0 && this.intervalId) {
@@ -83,7 +124,31 @@ class AudioServiceInstance {
       }
       return false;
     } catch (error) {
-      console.error('Error in AudioService.stop:', error);
+      console.error('Error in AudioService.stopSound:', error);
+      return false;
+    }
+  }
+  
+  /**
+  /**
+   * Stop all currently playing sounds
+   */
+  stopAll(): boolean {
+    try {
+      // Clear all sounds from the map
+      this.playingSounds.clear();
+      
+      // Reset current sound
+      this.currentSound = null;
+      
+      // Clear the interval if running
+      if (this.intervalId) {
+        clearInterval(this.intervalId);
+        this.intervalId = null;
+      }
+      return true;
+    } catch (error) {
+      console.error('Error in AudioService.stopAll:', error);
       return false;
     }
   }
@@ -97,25 +162,17 @@ class AudioServiceInstance {
       }
       this.playingSounds.clear();
       this.currentSound = null;
+      this.globalVolume = DEFAULT_VOLUME; // Reset to default volume
     } catch (error) {
       console.error('Error in AudioService.destroy:', error);
     }
   }
 
   private updatePlaybackTime(): void {
-    // Use a flag to prevent race conditions during updates
-    if (this.isUpdating) {
-      return; // Skip this update if already updating
-    }
-    
     try {
-      this.isUpdating = true;
-      
-      // Collect all updates in an array to avoid modifying the map during iteration
-      const updates: Array<{ soundId: string; newData: { isPlaying: boolean; volume: number; duration: number; currentTime: number } }> = [];
       let anyPlaying = false;
       
-      // Iterate through the map without modifying it during iteration
+      // Iterate through the map and update playing sounds directly
       for (const [soundId, data] of this.playingSounds) {
         if (data.isPlaying) {
           anyPlaying = true;
@@ -123,27 +180,20 @@ class AudioServiceInstance {
           const newTime = Math.min(data.currentTime + (UPDATE_INTERVAL_MS / 1000), data.duration);
           if (newTime >= data.duration) {
             // For ambient sounds, we'll loop back to beginning
-            updates.push({ soundId, newData: { ...data, currentTime: 0 } });
+            this.playingSounds.set(soundId, { ...data, currentTime: 0 });
           } else {
-            updates.push({ soundId, newData: { ...data, currentTime: newTime } });
+            this.playingSounds.set(soundId, { ...data, currentTime: newTime });
           }
         }
       }
       
-      // Apply all updates atomically after the iteration is complete
-      for (const update of updates) {
-        this.playingSounds.set(update.soundId, update.newData);
-      }
-      
-      // Clear interval if no sounds are playing - check again after processing all sounds
+      // Clear interval if no sounds are playing
       if (!anyPlaying && this.intervalId) {
         clearInterval(this.intervalId);
         this.intervalId = null;
       }
     } catch (error) {
       console.error('Error in AudioService.updatePlaybackTime:', error);
-    } finally {
-      this.isUpdating = false;
     }
   }
 
@@ -319,8 +369,8 @@ const audioServiceInstance = new AudioServiceInstance();
 
 // Export static methods that match the test expectations
 export const AudioService = {
-  play: async (soundId: string, volume: number = DEFAULT_VOLUME): Promise<boolean> => {
-    return audioServiceInstance.play(soundId, volume);
+  play: async (soundId: string, volume: number = DEFAULT_VOLUME, options?: AudioLoadOptions): Promise<boolean> => {
+    return audioServiceInstance.play(soundId, volume, options);
   },
   pause: (): boolean => {
     return audioServiceInstance.pause();
@@ -328,14 +378,29 @@ export const AudioService = {
   stop: (): boolean => {
     return audioServiceInstance.stop();
   },
+  stopSound: (soundId: string): boolean => {
+    return audioServiceInstance.stopSound(soundId);
+  },
+  stopAll: (): boolean => {
+    return audioServiceInstance.stopAll();
+  },
   setVolume: (volume: number): void => {
     audioServiceInstance.setVolume(volume);
   },
   isPlaying: (): boolean => {
     return audioServiceInstance.isPlaying();
   },
+  isSoundPlaying: (soundId: string): boolean => {
+    return audioServiceInstance.isSoundPlaying(soundId);
+  },
   getVolume: (): number => {
     return audioServiceInstance.getVolume();
+  },
+  getSoundVolume: (soundId: string): number => {
+    return audioServiceInstance.getSoundVolume(soundId);
+  },
+  setSoundVolume: (soundId: string, volume: number): void => {
+    audioServiceInstance.setSoundVolume(soundId, volume);
   },
   getCurrentSound: (): string | null => {
     return audioServiceInstance.getCurrentSound();
@@ -360,5 +425,32 @@ export const AudioService = {
     activeSounds: string[];
   } => {
     return audioServiceInstance.getAllState();
+  },
+  // Audio file management methods
+  preloadSounds: async (soundIds: string[], options?: AudioLoadOptions): Promise<void> => {
+    const sounds = soundIds.map(id => {
+      const sound = ambientSounds.find(s => s.id === id);
+      if (!sound) throw new Error(`Sound not found: ${id}`);
+      return { id, filePath: sound.filePath };
+    });
+    await audioFileManager.preloadAudioFiles(sounds, options);
+  },
+  downloadSound: async (soundId: string, url: string, onProgress?: (progress: any) => void): Promise<string> => {
+    return audioFileManager.downloadAudioFile(soundId, url, onProgress);
+  },
+  getDownloadProgress: (soundId: string) => {
+    return audioFileManager.getDownloadProgress(soundId);
+  },
+  getAudioMetadata: (soundId: string) => {
+    return audioFileManager.getAudioMetadata(soundId);
+  },
+  isSoundCached: (soundId: string): boolean => {
+    return audioFileManager.isSoundCached(soundId);
+  },
+  clearAudioCache: async (): Promise<void> => {
+    await audioFileManager.clearCache();
+  },
+  getCacheStats: () => {
+    return audioFileManager.getCacheStats();
   }
 };
