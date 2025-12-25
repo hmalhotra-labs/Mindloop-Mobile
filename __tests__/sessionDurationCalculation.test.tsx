@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, fireEvent, screen } from '@testing-library/react-native';
+import { render, fireEvent, screen, act } from '@testing-library/react-native';
 import { SessionScreen } from '../src/components/session/SessionScreen';
 
 // Mock the useSessionTimer hook to control timer behavior
@@ -59,17 +59,18 @@ describe('SessionScreen Duration Calculation Logic', () => {
       rerender(<SessionScreen />);
       
       // After the fix, it should show the actual duration (1 minute) not hardcoded 5 minutes
-      const completionMessage = screen.queryByText(/minute breathing session/);
+      const completionMessage = screen.queryByText(/Great job! You've completed a .+ minute[s]? breathing session./);
       expect(completionMessage).toBeTruthy();
       
       if (completionMessage) {
-        // With the fix, this should show "1 minute" not "5 minute"
-        // The text is split into array elements, so check for the number 1 in the children
-        expect(completionMessage.props.children).toContain(1);
+        // With the fix, this should show "1" not "5"
+        const messageText = completionMessage.props.children.join('');
+        expect(messageText).toContain('1');
+        expect(messageText).not.toContain('5'); // Should NOT be hardcoded to 5
       }
     });
 
-    test('should show correct duration for 3-minute session', () => {
+    test('should show correct duration for 3-minute session', async () => {
       const mockStart = jest.fn();
       mockTimerState = {
         remainingTime: 180, // 3-minute session
@@ -84,26 +85,30 @@ describe('SessionScreen Duration Calculation Logic', () => {
       
       const { rerender } = render(<SessionScreen />);
       
-      // Simulate starting a 3-minute session
+      // Simulate starting a 3-minute session (this sets originalDuration to 180)
       fireEvent.press(screen.getByText('3 Minutes'));
       
       // Force completion state
-      mockTimerState.remainingTime = 0;
-      mockTimerState.isRunning = false;
-      mockTimerState.isPaused = false;
-      mockTimerState.isCompleted = true; // Set to true for completed session
-      rerender(<SessionScreen />);
+      await act(async () => {
+        mockTimerState.remainingTime = 0;
+        mockTimerState.isRunning = false;
+        mockTimerState.isPaused = false;
+        mockTimerState.isCompleted = true; // Set to true for completed session
+        rerender(<SessionScreen />);
+      });
       
-      const completionMessage = screen.queryByText(/minute breathing session/);
+      const completionMessage = screen.queryByText(/Great job! You've completed a .+ minute[s]? breathing session./);
       
-      // With the fix, should show "3 minute"
+      // With the fix, should show "3"
       expect(completionMessage).toBeTruthy();
       if (completionMessage) {
-        expect(completionMessage.props.children).toContain(3);
+        const messageText = completionMessage.props.children.join('');
+        expect(messageText).toContain('3');
+        expect(messageText).not.toContain('5'); // Should NOT be hardcoded to 5
       }
     });
 
-    test('should show correct duration for 5-minute session', () => {
+    test('should show correct duration for 5-minute session', async () => {
       const mockStart = jest.fn();
       mockTimerState = {
         remainingTime: 300, // 5-minute session
@@ -118,26 +123,29 @@ describe('SessionScreen Duration Calculation Logic', () => {
       
       const { rerender } = render(<SessionScreen />);
       
-      // Simulate starting a 5-minute session
+      // Simulate starting a 5-minute session (this sets originalDuration to 300)
       fireEvent.press(screen.getByText('5 Minutes'));
       
       // Force completion state
-      mockTimerState.remainingTime = 0;
-      mockTimerState.isRunning = false;
-      mockTimerState.isPaused = false;
-      mockTimerState.isCompleted = true; // Set to true for completed session
-      rerender(<SessionScreen />);
+      await act(async () => {
+        mockTimerState.remainingTime = 0;
+        mockTimerState.isRunning = false;
+        mockTimerState.isPaused = false;
+        mockTimerState.isCompleted = true; // Set to true for completed session
+        rerender(<SessionScreen />);
+      });
       
-      const completionMessage = screen.queryByText(/minute breathing session/);
+      const completionMessage = screen.queryByText(/Great job! You've completed a .+ minute[s]? breathing session./);
       
-      // Should show "5 minute" (this was the hardcoded value before)
+      // Should show "5" (this was the hardcoded value before)
       expect(completionMessage).toBeTruthy();
       if (completionMessage) {
-        expect(completionMessage.props.children).toContain(5);
+        const messageText = completionMessage.props.children.join('');
+        expect(messageText).toContain('5');
       }
     });
 
-    test('should show correct duration for custom session', () => {
+    test('should show correct duration for custom session', async () => {
       const mockStart = jest.fn();
       mockTimerState = {
         remainingTime: 600, // 10-minute session (600 seconds)
@@ -159,18 +167,22 @@ describe('SessionScreen Duration Calculation Logic', () => {
       fireEvent.press(screen.getByText('Start Custom'));
       
       // Force completion state
-      mockTimerState.remainingTime = 0;
-      mockTimerState.isRunning = false;
-      mockTimerState.isPaused = false;
-      mockTimerState.isCompleted = true; // Set to true for completed session
-      rerender(<SessionScreen />);
+      await act(async () => {
+        mockTimerState.remainingTime = 0;
+        mockTimerState.isRunning = false;
+        mockTimerState.isPaused = false;
+        mockTimerState.isCompleted = true; // Set to true for completed session
+        rerender(<SessionScreen />);
+      });
       
-      const completionMessage = screen.queryByText(/minute breathing session/);
+      const completionMessage = screen.queryByText(/Great job! You've completed a .+ minute[s]? breathing session./);
       
-      // Should show "10 minute" for custom 600-second session
+      // Should show "10" for custom 600-second session
       expect(completionMessage).toBeTruthy();
       if (completionMessage) {
-        expect(completionMessage.props.children).toContain(10);
+        const messageText = completionMessage.props.children.join('');
+        expect(messageText).toContain('10');
+        expect(messageText).not.toContain('5'); // Should NOT be hardcoded to 5
       }
     });
   });

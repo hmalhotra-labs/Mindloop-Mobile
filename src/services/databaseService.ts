@@ -1,5 +1,6 @@
 import { User, UserData } from '../models/User';
 import { Session, SessionData } from '../models/Session';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Database operation result types for better type safety
 export interface DatabaseResult<T> {
@@ -30,14 +31,100 @@ export class DatabaseService {
   private nextUserId = 1;
   private nextSessionId = 1;
 
+  // Storage keys for AsyncStorage
+  private static readonly USERS_STORAGE_KEY = 'database_users';
+  private static readonly SESSIONS_STORAGE_KEY = 'database_sessions';
+  private static readonly NEXT_IDS_STORAGE_KEY = 'database_next_ids';
+
   async initialize(): Promise<void> {
     try {
-      // Initialize in-memory storage
+      // Load data from AsyncStorage
+      await this.loadFromStorage();
       this.isInitialized = true;
     } catch (error) {
       throw new DatabaseError(
         'Database initialization failed',
         'INIT_FAILED',
+        error instanceof Error ? error : new Error(String(error))
+      );
+    }
+  }
+
+  // Private helper methods for AsyncStorage operations
+  private async loadFromStorage(): Promise<void> {
+    try {
+      // Load users
+      const usersData = await AsyncStorage.getItem(DatabaseService.USERS_STORAGE_KEY);
+      if (usersData) {
+        const usersArray = JSON.parse(usersData);
+        this.users.clear();
+        for (const userData of usersArray) {
+          // Deserialize Date objects
+          const user = new User({
+            ...userData,
+            createdAt: new Date(userData.createdAt)
+          });
+          this.users.set(user.id, user);
+        }
+      }
+
+      // Load sessions
+      const sessionsData = await AsyncStorage.getItem(DatabaseService.SESSIONS_STORAGE_KEY);
+      if (sessionsData) {
+        const sessionsArray = JSON.parse(sessionsData);
+        this.sessions.clear();
+        for (const sessionData of sessionsArray) {
+          // Deserialize Date objects
+          const session = new Session({
+            ...sessionData,
+            completedAt: new Date(sessionData.completedAt)
+          });
+          this.sessions.set(session.id, session);
+        }
+      }
+
+      // Load next IDs
+      const nextIdsData = await AsyncStorage.getItem(DatabaseService.NEXT_IDS_STORAGE_KEY);
+      if (nextIdsData) {
+        const nextIds = JSON.parse(nextIdsData);
+        this.nextUserId = nextIds.nextUserId || 1;
+        this.nextSessionId = nextIds.nextSessionId || 1;
+      }
+    } catch (error) {
+      throw new DatabaseError(
+        'Failed to load data from storage',
+        'LOAD_FAILED',
+        error instanceof Error ? error : new Error(String(error))
+      );
+    }
+  }
+
+  private async saveToStorage(): Promise<void> {
+    try {
+      // Save users
+      const usersArray = Array.from(this.users.values()).map(user => ({
+        ...user,
+        createdAt: user.createdAt.toISOString() // Serialize Date to string
+      }));
+      await AsyncStorage.setItem(DatabaseService.USERS_STORAGE_KEY, JSON.stringify(usersArray));
+
+      // Save sessions
+      const sessionsArray = Array.from(this.sessions.values()).map(session => ({
+        ...session,
+        completedAt: session.completedAt.toISOString() // Serialize Date to string
+      }));
+      await AsyncStorage.setItem(DatabaseService.SESSIONS_STORAGE_KEY, JSON.stringify(sessionsArray));
+
+      // Save next IDs
+      const nextIds = {
+        nextUserId: this.nextUserId,
+        nextSessionId: this.nextSessionId
+      };
+      await AsyncStorage.setItem(DatabaseService.NEXT_IDS_STORAGE_KEY, JSON.stringify(nextIds));
+    } catch (error) {
+      throw new DatabaseError(
+        'Failed to save data to storage',
+        'SAVE_FAILED',
         error instanceof Error ? error : new Error(String(error))
       );
     }
@@ -52,14 +139,25 @@ export class DatabaseService {
         throw new DatabaseError('User data is required', 'INVALID_INPUT');
       }
 
-      // Create a new user with incremented ID
+      // Use provided ID if valid, otherwise use auto-increment
+      const userId = (userData.id && userData.id > 0) ? userData.id : this.nextUserId++;
+      
+      // Create a new user with the determined ID
       const newUser = new User({
         ...userData,
-        id: this.nextUserId++
+        id: userId
       });
+      
+      // Update nextUserId if we used auto-increment
+      if (!userData.id || userData.id <= 0) {
+        this.nextUserId = userId + 1;
+      }
       
       // Store in our in-memory database
       this.users.set(newUser.id, newUser);
+      
+      // Save to AsyncStorage
+      await this.saveToStorage();
       
       return newUser;
     } catch (error) {
@@ -125,6 +223,9 @@ export class DatabaseService {
       // Update in-memory storage
       this.users.set(id, updatedUser);
       
+      // Save to AsyncStorage
+      await this.saveToStorage();
+      
       return updatedUser;
     } catch (error) {
       if (error instanceof DatabaseError) {
@@ -151,14 +252,25 @@ export class DatabaseService {
         throw new DatabaseError('Valid user ID is required for session', 'INVALID_INPUT');
       }
 
-      // Create a new session with incremented ID
+      // Use provided ID if valid, otherwise use auto-increment
+      const sessionId = (sessionData.id && sessionData.id > 0) ? sessionData.id : this.nextSessionId++;
+      
+      // Create a new session with the determined ID
       const newSession = new Session({
         ...sessionData,
-        id: this.nextSessionId++
+        id: sessionId
       });
+      
+      // Update nextSessionId if we used auto-increment
+      if (!sessionData.id || sessionData.id <= 0) {
+        this.nextSessionId = sessionId + 1;
+      }
       
       // Store in our in-memory database
       this.sessions.set(newSession.id, newSession);
+      
+      // Save to AsyncStorage
+      await this.saveToStorage();
       
       return newSession;
     } catch (error) {
@@ -217,6 +329,12 @@ export class DatabaseService {
 
       // Delete session from in-memory storage
       const deleted = this.sessions.delete(id);
+      
+      // Save to AsyncStorage
+      if (deleted) {
+        await this.saveToStorage();
+      }
+      
       return deleted;
     } catch (error) {
       if (error instanceof DatabaseError) {
@@ -263,6 +381,13 @@ export class DatabaseService {
       this.sessions.clear();
       this.nextUserId = 1;
       this.nextSessionId = 1;
+      
+      // Clear AsyncStorage
+      await AsyncStorage.multiRemove([
+        DatabaseService.USERS_STORAGE_KEY,
+        DatabaseService.SESSIONS_STORAGE_KEY,
+        DatabaseService.NEXT_IDS_STORAGE_KEY
+      ]);
     } catch (error) {
       throw new DatabaseError(
         'Failed to clear database',

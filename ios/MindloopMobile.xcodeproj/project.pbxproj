@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>ArchiveVersion</key>
+	<string>1</string>
+	<key>DataMode</key>
+	<string>1</string>
+	<key>DocumentType</key>
+	<string>com.apple.xcode.project-document</string>
+	<key>ProjectName</key>
+	<string>MindloopMobile</string>
+	<key>TargetAttributes</key>
+	<dict>
+		<key>App</key>
+		<dict>
+			<key>CreatedOnToolsVersion</key>
+			<string>13.0</string>
+		</dict>
+	</dict>
+</dict>
+</plist>

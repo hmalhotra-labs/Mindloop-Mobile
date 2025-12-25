@@ -280,10 +280,10 @@ class AudioFileManager {
       setTimeout(() => {
         clearTimeout(timeoutId);
         
-        // Simulate extracted metadata
+        // Simulate extracted metadata with realistic values
         const metadata: Omit<AudioFileMetadata, 'isCached' | 'cachePath'> = {
           duration: Math.floor(Math.random() * 1800) + 600, // 10-40 minutes
-          size: Math.floor(Math.random() * 10) + 5, // 5-15 MB
+          size: Math.floor(Math.random() * 10485760) + 1048576, // 1-11 MB (realistic file sizes)
           format: filePath.split('.').pop()?.toLowerCase() || 'mp3',
           bitrate: 128,
           quality: 'medium',
