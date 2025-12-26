@@ -1,7 +1,10 @@
-// Real Audio Service for React Native - Actual audio implementation
-// Replaces simulation with real audio playback
+import { Platform } from 'react-native';
+import Sound from 'react-native-sound';
 import { ambientSounds } from '../data/ambientSounds';
 import { AudioLoadOptions } from './audioFileManager';
+
+// Initialize sound library
+Sound.setCategory('Playback');
 
 // Real audio interface for React Native
 interface RealAudioElement {
@@ -9,19 +12,21 @@ interface RealAudioElement {
   readonly duration: number;
   readonly paused: boolean;
   readonly volume: number;
-  play(): void;
+  play(callback?: (success: boolean) => void): void;
   pause(): void;
   stop(): void;
   setVolume(vol: number): void;
   getCurrentTime(): number;
   addEventListener(event: string, callback: Function): void;
   removeEventListener(event: string, callback: Function): void;
+  release(): void; // Release the audio resource
+  isPlaying(): boolean; // Check if playing
 }
 
-// Real audio implementation
+// Real audio implementation using react-native-sound
 class RealAudioServiceInstance {
   private playingSounds: Map<string, { 
-    audioElement: RealAudioElement; 
+    audioElement: Sound; 
     volume: number; 
     duration: number;
     soundId: string;
@@ -31,108 +36,92 @@ class RealAudioServiceInstance {
   private currentSound: string | null = null;
 
   private createRealAudioElement(filePath: string, duration: number): RealAudioElement {
-    // Create environment-appropriate audio element
-    if (typeof window !== 'undefined' && (window as any).Audio) {
-      // Web environment - use HTML5 Audio
-      const audio = new (window as any).Audio();
-      audio.volume = 0.5;
-      audio.loop = true;
-      audio.preload = 'auto';
-      
-      // Set up real event listeners
-      audio.addEventListener('loadedmetadata', () => {
-        console.log(`Real web audio loaded: ${filePath}, duration: ${audio.duration}s`);
-      });
-
-      audio.addEventListener('canplaythrough', () => {
-        console.log(`Web audio ready to play: ${filePath}`);
-        audio.play().catch((error: any) => {
-          console.warn(`Failed to auto-play web audio ${filePath}:`, error);
-        });
-      });
-
-      audio.addEventListener('error', (e: any) => {
-        console.error(`Real web audio error for ${filePath}:`, e);
-      });
-
-      // Try to load real audio file
-      try {
-        audio.src = filePath;
-        audio.load();
-      } catch (error) {
-        console.warn(`Could not load real web audio file ${filePath}:`, error);
+    // Create a wrapper around react-native-sound to match our interface
+    const sound = new Sound(filePath, Sound.MAIN_BUNDLE, (error: any) => {
+      if (error) {
+        console.log('Failed to load sound:', error);
       }
+    });
+
+    // Create a wrapper object that implements our RealAudioElement interface
+    const audioWrapper: RealAudioElement = {
+      get currentTime() {
+        let time = 0;
+        sound.getCurrentTime((seconds: number) => {
+          time = seconds;
+        });
+        return time;
+      },
       
-      return audio;
-    } else {
-      // React Native environment - create realistic audio interface
-      // This represents actual audio file loading and playback
-      console.log(`Creating REAL React Native audio element for: ${filePath}`);
+      get duration() {
+        return sound.getDuration();
+      },
       
-      const audioState = {
-        volume: 0.5,
-        currentTime: 0,
-        duration: duration,
-        paused: false,
-        isRealAudio: true,
-        actualPlayback: true
-      };
+      get paused() {
+        return !sound.isPlaying();
+      },
       
-      return {
-        // Real properties from actual audio files
-        get currentTime() { return audioState.currentTime; },
-        get duration() { return audioState.duration; },
-        get paused() { return audioState.paused; },
-        get volume() { return audioState.volume; },
-        
-        // Real methods that interact with actual audio files
-        play: () => {
-          console.log(`Playing REAL audio file: ${filePath}`);
-          audioState.paused = false;
-          audioState.isRealAudio = true;
-          audioState.actualPlayback = true;
-          // This represents actual native audio playback
-        },
-        
-        pause: () => {
-          console.log(`Pausing REAL audio file: ${filePath}`);
-          audioState.paused = true;
-        },
-        
-        stop: () => {
-          console.log(`Stopping REAL audio file: ${filePath}`);
-          audioState.paused = true;
-          audioState.currentTime = 0;
-        },
-        
-        setVolume: (vol: number) => {
-          console.log(`Setting REAL volume for ${filePath}: ${vol}`);
-          audioState.volume = vol;
-        },
-        
-        getCurrentTime: () => {
-          // Real time tracking from actual audio element
-          if (!audioState.paused && audioState.actualPlayback) {
-            audioState.currentTime = Math.min(audioState.currentTime + 0.1, duration);
+      get volume() {
+        return sound.getVolume();
+      },
+      
+      play: (callback?: (success: boolean) => void) => {
+        console.log(`Playing REAL audio file: ${filePath}`);
+        sound.play((success: boolean) => {
+          if (!success) {
+            console.log('Failed to play audio:', filePath);
           }
-          return audioState.currentTime;
-        },
-        
-        addEventListener: (event: string, callback: Function) => {
-          console.log(`Added REAL audio listener for ${event} on ${filePath}`);
-          // Simulate real audio events for actual file loading
-          if (event === 'loadedmetadata') {
-            setTimeout(() => callback(), 100);
-          } else if (event === 'canplaythrough') {
-            setTimeout(() => callback(), 200);
-          }
-        },
-        
-        removeEventListener: (event: string, callback: Function) => {
-          console.log(`Removed REAL audio listener for ${event} on ${filePath}`);
+          if (callback) callback(success);
+        });
+      },
+      
+      pause: () => {
+        console.log(`Pausing REAL audio file: ${filePath}`);
+        sound.pause();
+      },
+      
+      stop: () => {
+        console.log(`Stopping REAL audio file: ${filePath}`);
+        sound.stop();
+      },
+      
+      setVolume: (vol: number) => {
+        console.log(`Setting REAL volume for ${filePath}: ${vol}`);
+        sound.setVolume(vol);
+      },
+      
+      getCurrentTime: () => {
+        let time = 0;
+        sound.getCurrentTime((seconds: number) => {
+          time = seconds;
+        });
+        return time;
+      },
+      
+      addEventListener: (event: string, callback: Function) => {
+        console.log(`Added REAL audio listener for ${event} on ${filePath}`);
+        // Sound provides callbacks instead of event listeners
+        // We'll simulate this for compatibility
+        if (event === 'ended') {
+          // react-native-sound doesn't have event listeners, so we'll skip this for now
         }
-      };
-    }
+      },
+      
+      removeEventListener: (event: string, callback: Function) => {
+        console.log(`Removed REAL audio listener for ${event} on ${filePath}`);
+      },
+      
+      release: () => {
+        console.log(`Releasing REAL audio resource: ${filePath}`);
+        sound.release();
+      },
+      
+      isPlaying: () => {
+        return sound.isPlaying();
+      }
+    };
+
+    return audioWrapper;
   }
 
   async play(soundId: string, volume: number = 0.5, options?: AudioLoadOptions): Promise<boolean> {
@@ -157,8 +146,14 @@ class RealAudioServiceInstance {
         }
       }
 
-      // Create real audio element
-      const audioElement = this.createRealAudioElement(sound.filePath, sound.duration);
+      // Create real audio element using react-native-sound
+      const soundPath = sound.filePath.startsWith('audio/') ? sound.filePath : `audio/${sound.filePath}`;
+      const audioElement = new Sound(soundPath, Sound.MAIN_BUNDLE, (error: any) => {
+        if (error) {
+          console.log('Failed to load sound:', error);
+          throw new Error(`Failed to load audio file: ${soundPath}`);
+        }
+      });
 
       // Store sound with real audio element
       this.playingSounds.set(soundId, {
@@ -167,6 +162,16 @@ class RealAudioServiceInstance {
         duration: sound.duration,
         soundId: soundId,
         isRealAudio: true // Critical: mark as real audio
+      });
+      
+      // Set volume
+      audioElement.setVolume(volume);
+      
+      // Play the sound
+      audioElement.play((success: boolean) => {
+        if (!success) {
+          console.log('Failed to play sound:', soundId);
+        }
       });
       
       this.currentSound = soundId;
@@ -184,8 +189,10 @@ class RealAudioServiceInstance {
       let pausedAny = false;
       
       for (const [soundId, data] of this.playingSounds) {
-        data.audioElement.pause();
-        pausedAny = true;
+        if (data.audioElement.isPlaying()) {
+          data.audioElement.pause();
+          pausedAny = true;
+        }
       }
       
       return pausedAny;
@@ -210,6 +217,7 @@ class RealAudioServiceInstance {
       const soundData = this.playingSounds.get(soundId);
       if (soundData) {
         soundData.audioElement.stop();
+        soundData.audioElement.release(); // Release the resource
         this.playingSounds.delete(soundId);
         
         if (this.currentSound === soundId) {
@@ -229,6 +237,7 @@ class RealAudioServiceInstance {
     try {
       for (const [soundId, data] of this.playingSounds) {
         data.audioElement.stop();
+        data.audioElement.release(); // Release the resource
       }
       this.playingSounds.clear();
       this.currentSound = null;
@@ -251,7 +260,7 @@ class RealAudioServiceInstance {
   isPlaying(): boolean {
     try {
       for (const [_, data] of this.playingSounds) {
-        if (!data.audioElement.paused) {
+        if (data.audioElement.isPlaying()) {
           return true;
         }
       }
@@ -265,7 +274,7 @@ class RealAudioServiceInstance {
   isSoundPlaying(soundId: string): boolean {
     try {
       const soundData = this.playingSounds.get(soundId);
-      return soundData ? !soundData.audioElement.paused : false;
+      return soundData ? soundData.audioElement.isPlaying() : false;
     } catch (error) {
       console.error('Error in RealAudioService.isSoundPlaying:', error);
       return false;
@@ -281,7 +290,6 @@ class RealAudioServiceInstance {
       
       this.playingSounds.forEach((data, soundId) => {
         data.audioElement.setVolume(volume);
-        this.playingSounds.set(soundId, { ...data, volume });
       });
     } catch (error) {
       console.error('Error in RealAudioService.setVolume:', error);
@@ -340,8 +348,14 @@ class RealAudioServiceInstance {
     try {
       const currentSound = this.getCurrentSound();
       if (currentSound) {
-        const timeData = this.getSoundTime(currentSound);
-        return timeData ? timeData.currentTime : 0;
+        const soundData = this.playingSounds.get(currentSound);
+        if (soundData) {
+          let currentTime = 0;
+          soundData.audioElement.getCurrentTime((seconds: number) => {
+            currentTime = seconds;
+          });
+          return currentTime;
+        }
       }
       return 0;
     } catch (error) {
@@ -354,8 +368,10 @@ class RealAudioServiceInstance {
     try {
       const currentSound = this.getCurrentSound();
       if (currentSound) {
-        const timeData = this.getSoundTime(currentSound);
-        return timeData ? timeData.duration : 0;
+        const soundData = this.playingSounds.get(currentSound);
+        if (soundData) {
+          return soundData.duration;
+        }
       }
       return 0;
     } catch (error) {
@@ -368,8 +384,12 @@ class RealAudioServiceInstance {
     try {
       const soundData = this.playingSounds.get(soundId);
       if (soundData) {
+        let currentTime = 0;
+        soundData.audioElement.getCurrentTime((seconds: number) => {
+          currentTime = seconds;
+        });
         return { 
-          currentTime: soundData.audioElement.getCurrentTime(), 
+          currentTime, 
           duration: soundData.duration 
         };
       }
