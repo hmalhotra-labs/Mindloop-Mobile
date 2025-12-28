@@ -23,16 +23,16 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">71.31% </span>
+                <span class="strong">72.95% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>87/122</span>
+                <span class='fraction'>89/122</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">56.48% </span>
+                <span class="strong">62.96% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>61/108</span>
+                <span class='fraction'>68/108</span>
             </div>
         
             
@@ -44,9 +44,9 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">71.9% </span>
+                <span class="strong">73.55% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>87/121</span>
+                <span class='fraction'>89/121</span>
             </div>
         
             
@@ -853,11 +853,11 @@
 <span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-yes">2x</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -1268,34 +1268,34 @@ export const setupAccessibilityTest = (settings?: AccessibilityTestSettings): vo
   // Mock AccessibilityInfo methods if needed
   <span class="missing-if-branch" title="else path not taken" >E</span>if (typeof jest !== 'undefined') {
     // Check if the methods exist before trying to mock them
-    <span class="missing-if-branch" title="if path not taken" >I</span>if (AccessibilityInfo &amp;&amp; <span class="branch-1 cbranch-no" title="branch not covered" >'isScreenReaderEnabled' in AccessibilityInfo)</span> {
-<span class="cstat-no" title="statement not covered" >      jest.spyOn(AccessibilityInfo, 'isScreenReaderEnabled')</span>
+    <span class="missing-if-branch" title="else path not taken" >E</span>if (AccessibilityInfo &amp;&amp; 'isScreenReaderEnabled' in AccessibilityInfo) {
+      jest.spyOn(AccessibilityInfo, 'isScreenReaderEnabled')
         .mockImplementation(<span class="fstat-no" title="function not covered" >()</span> =&gt; <span class="cstat-no" title="statement not covered" >mock.isScreenReaderEnabled())</span>;
     }
-    <span class="missing-if-branch" title="if path not taken" >I</span>if (AccessibilityInfo &amp;&amp; <span class="branch-1 cbranch-no" title="branch not covered" >'isReduceMotionEnabled' in AccessibilityInfo)</span> {
-<span class="cstat-no" title="statement not covered" >      jest.spyOn(AccessibilityInfo, 'isReduceMotionEnabled')</span>
+    <span class="missing-if-branch" title="else path not taken" >E</span>if (AccessibilityInfo &amp;&amp; 'isReduceMotionEnabled' in AccessibilityInfo) {
+      jest.spyOn(AccessibilityInfo, 'isReduceMotionEnabled')
         .mockImplementation(<span class="fstat-no" title="function not covered" >()</span> =&gt; <span class="cstat-no" title="statement not covered" >mock.isReduceMotionEnabled())</span>;
     }
     // Note: isHighContrastEnabled, isBoldTextEnabled, isGrayscaleEnabled,
     // isInvertColorsEnabled, and isClosedCaptioningEnabled may not be available
     // in all React Native versions, so we'll conditionally mock them
-    <span class="missing-if-branch" title="if path not taken" >I</span>if (AccessibilityInfo &amp;&amp; <span class="branch-1 cbranch-no" title="branch not covered" >'isHighContrastEnabled' in AccessibilityInfo)</span> {
+    <span class="missing-if-branch" title="if path not taken" >I</span>if (AccessibilityInfo &amp;&amp; 'isHighContrastEnabled' in AccessibilityInfo) {
 <span class="cstat-no" title="statement not covered" >      jest.spyOn(AccessibilityInfo, 'isHighContrastEnabled' as any)</span>
         .mockImplementation(<span class="fstat-no" title="function not covered" >()</span> =&gt; <span class="cstat-no" title="statement not covered" >mock.isHighContrastEnabled())</span>;
     }
-    <span class="missing-if-branch" title="if path not taken" >I</span>if (AccessibilityInfo &amp;&amp; <span class="branch-1 cbranch-no" title="branch not covered" >'isBoldTextEnabled' in AccessibilityInfo)</span> {
+    <span class="missing-if-branch" title="if path not taken" >I</span>if (AccessibilityInfo &amp;&amp; 'isBoldTextEnabled' in AccessibilityInfo) {
 <span class="cstat-no" title="statement not covered" >      jest.spyOn(AccessibilityInfo, 'isBoldTextEnabled' as any)</span>
         .mockImplementation(<span class="fstat-no" title="function not covered" >()</span> =&gt; <span class="cstat-no" title="statement not covered" >mock.isBoldTextEnabled())</span>;
     }
-    <span class="missing-if-branch" title="if path not taken" >I</span>if (AccessibilityInfo &amp;&amp; <span class="branch-1 cbranch-no" title="branch not covered" >'isGrayscaleEnabled' in AccessibilityInfo)</span> {
+    <span class="missing-if-branch" title="if path not taken" >I</span>if (AccessibilityInfo &amp;&amp; 'isGrayscaleEnabled' in AccessibilityInfo) {
 <span class="cstat-no" title="statement not covered" >      jest.spyOn(AccessibilityInfo, 'isGrayscaleEnabled' as any)</span>
         .mockImplementation(<span class="fstat-no" title="function not covered" >()</span> =&gt; <span class="cstat-no" title="statement not covered" >mock.isGrayscaleEnabled())</span>;
     }
-    <span class="missing-if-branch" title="if path not taken" >I</span>if (AccessibilityInfo &amp;&amp; <span class="branch-1 cbranch-no" title="branch not covered" >'isInvertColorsEnabled' in AccessibilityInfo)</span> {
+    <span class="missing-if-branch" title="if path not taken" >I</span>if (AccessibilityInfo &amp;&amp; 'isInvertColorsEnabled' in AccessibilityInfo) {
 <span class="cstat-no" title="statement not covered" >      jest.spyOn(AccessibilityInfo, 'isInvertColorsEnabled' as any)</span>
         .mockImplementation(<span class="fstat-no" title="function not covered" >()</span> =&gt; <span class="cstat-no" title="statement not covered" >mock.isInvertColorsEnabled())</span>;
     }
-    <span class="missing-if-branch" title="if path not taken" >I</span>if (AccessibilityInfo &amp;&amp; <span class="branch-1 cbranch-no" title="branch not covered" >'isClosedCaptioningEnabled' in AccessibilityInfo)</span> {
+    <span class="missing-if-branch" title="if path not taken" >I</span>if (AccessibilityInfo &amp;&amp; 'isClosedCaptioningEnabled' in AccessibilityInfo) {
 <span class="cstat-no" title="statement not covered" >      jest.spyOn(AccessibilityInfo, 'isClosedCaptioningEnabled' as any)</span>
         .mockImplementation(<span class="fstat-no" title="function not covered" >()</span> =&gt; <span class="cstat-no" title="statement not covered" >mock.isClosedCaptioningEnabled())</span>;
     }
@@ -1318,7 +1318,7 @@ export const cleanupAccessibilityTest = (): void =&gt; {
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-12-21T17:02:06.378Z
+                at 2025-12-28T20:47:04.566Z
             </div>
         <script src="../prettify.js"></script>
         <script>
