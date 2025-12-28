@@ -1,151 +1,146 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, StatusBar, Platform } from 'react-native';
-import { BreathingCircle } from './BreathingCircle';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, StatusBar } from 'react-native';
+import { OrganicBlob } from './OrganicBlob';
 import { AudioService } from '../../services/audioService';
-import { ambientSounds } from '../../data/ambientSounds';
+import { colors, spacing, typography, borderRadius } from '../../config/theme';
 
 interface BreathingScreenProps {
+  duration?: number; // in seconds
+  onComplete?: () => void;
   onBack?: () => void;
 }
 
-export const BreathingScreen: React.FC<BreathingScreenProps> = ({ onBack }) => {
-  const [isBreathing, setIsBreathing] = useState(false);
-  const [sessionTime, setSessionTime] = useState(0);
-  const [selectedSound, setSelectedSound] = useState(ambientSounds[0].id);
-  const [isPlaying, setIsPlaying] = useState(false);
+type BreathingPhase = 'inhale' | 'hold' | 'exhale';
 
-  // Timer for the breathing session
+export const BreathingScreen: React.FC<BreathingScreenProps> = ({
+  duration = 60,
+  onComplete,
+  onBack
+}) => {
+  const [isBreathing, setIsBreathing] = useState(true);
+  const [isPaused, setIsPaused] = useState(false);
+  const [remainingTime, setRemainingTime] = useState(duration);
+  const [breathingPhase, setBreathingPhase] = useState<BreathingPhase>('inhale');
+  const [phaseTimer, setPhaseTimer] = useState(0);
+
+  // Breathing phase cycle: inhale (4s) → hold (2s) → exhale (6s) → hold (2s) = 14s total
+  const INHALE_DURATION = 4;
+  const HOLD_DURATION = 2;
+  const EXHALE_DURATION = 6;
+  const CYCLE_DURATION = INHALE_DURATION + HOLD_DURATION + EXHALE_DURATION + HOLD_DURATION;
+
+  // Timer effect
   useEffect(() => {
-    let interval: NodeJS.Timeout | null = null;
+    if (!isBreathing || isPaused) return;
 
-    if (isBreathing) {
-      interval = setInterval(() => {
-        setSessionTime(prevTime => prevTime + 1);
-      }, 1000);
-    }
-
-    return () => {
-      if (interval) clearInterval(interval);
-    };
-  }, [isBreathing]);
-
-  // Handle breathing start/stop
-  const toggleBreathing = () => {
-    const newIsBreathing = !isBreathing;
-    setIsBreathing(newIsBreathing);
-
-    // Handle audio playback
-    if (newIsBreathing) {
-      // Start playing selected ambient sound
-      AudioService.play(selectedSound).then(success => {
-        if (success) {
-          setIsPlaying(true);
+    const interval = setInterval(() => {
+      setRemainingTime(prev => {
+        if (prev <= 1) {
+          setIsBreathing(false);
+          onComplete?.();
+          return 0;
         }
+        return prev - 1;
       });
+
+      // Update breathing phase
+      setPhaseTimer(prev => {
+        const newTimer = (prev + 1) % CYCLE_DURATION;
+
+        if (newTimer < INHALE_DURATION) {
+          setBreathingPhase('inhale');
+        } else if (newTimer < INHALE_DURATION + HOLD_DURATION) {
+          setBreathingPhase('hold');
+        } else if (newTimer < INHALE_DURATION + HOLD_DURATION + EXHALE_DURATION) {
+          setBreathingPhase('exhale');
+        } else {
+          setBreathingPhase('hold');
+        }
+
+        return newTimer;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isBreathing, isPaused, onComplete]);
+
+  const handlePauseResume = useCallback(() => {
+    setIsPaused(prev => !prev);
+    if (isPaused) {
+      AudioService.play('ocean-waves', 0.5);
     } else {
-      // Stop audio playback
-      AudioService.stop();
-      setIsPlaying(false);
+      AudioService.pause();
     }
-  };
+  }, [isPaused]);
 
-  // Format time as MM:SS
-  const formatTime = (seconds: number): string => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  // Handle sound selection
-  const handleSoundSelect = (soundId: string) => {
-    setSelectedSound(soundId);
-    
-    if (isPlaying) {
-      // Stop current sound and play new one
-      AudioService.stop();
-      AudioService.play(soundId).then(success => {
-        if (success) {
-          setIsPlaying(true);
-        }
-      });
+  const getPhaseText = (): string => {
+    switch (breathingPhase) {
+      case 'inhale':
+        return 'Inhale';
+      case 'exhale':
+        return 'Exhale';
+      case 'hold':
+        return 'Hold';
+      default:
+        return 'Breathe';
     }
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#1e293b" />
-      
-      {/* Header */}
+      <StatusBar barStyle="light-content" backgroundColor={colors.background} />
+
+      {/* Header with back button */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.backButton}>
-          <Text style={styles.backButtonText}>← Back</Text>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={onBack}
+          accessibilityLabel="Go back"
+          accessibilityRole="button"
+        >
+          <Text style={styles.backButtonText}>‹</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Mindful Breathing</Text>
-        <View style={styles.spacer} /> {/* Spacer for alignment */}
       </View>
 
-      {/* Main content */}
+      {/* Main Content */}
       <View style={styles.content}>
-        {/* Breathing circle */}
-        <View style={styles.circleContainer}>
-          <BreathingCircle
-            size={200}
-            color="#4ade80"
-            isBreathing={isBreathing}
+        {/* Breathing Phase Text */}
+        <Text
+          style={styles.phaseText}
+          accessibilityLiveRegion="polite"
+          accessibilityLabel={`${getPhaseText()}`}
+        >
+          {getPhaseText()}
+        </Text>
+
+        {/* Organic Blob Animation */}
+        <View style={styles.blobContainer}>
+          <OrganicBlob
+            size={220}
+            isBreathing={isBreathing && !isPaused}
+            breathingPhase={breathingPhase}
           />
         </View>
 
-        {/* Instructions */}
-        <View style={styles.instructionsContainer}>
-          <Text style={styles.instructionText}>
-            {isBreathing
-              ? "Breathe in slowly for 4 seconds, hold for 2, then exhale for 6 seconds"
-              : "Tap START to begin breathing exercise"}
+        {/* Timer Display */}
+        <Text
+          style={styles.timer}
+          accessibilityLabel={`${remainingTime} seconds remaining`}
+        >
+          {remainingTime}
+        </Text>
+
+        {/* Pause/Play Button */}
+        <TouchableOpacity
+          style={styles.controlButton}
+          onPress={handlePauseResume}
+          accessibilityLabel={isPaused ? 'Resume breathing' : 'Pause breathing'}
+          accessibilityRole="button"
+        >
+          <Text style={styles.controlButtonText}>
+            {isPaused ? '▶' : '⏸'}
           </Text>
-        </View>
-
-        {/* Timer */}
-        <View style={styles.timerContainer}>
-          <Text style={styles.timerText}>{formatTime(sessionTime)}</Text>
-        </View>
-
-        {/* Controls */}
-        <View style={styles.controlsContainer}>
-          <TouchableOpacity
-            style={[styles.controlButton, isBreathing ? styles.stopButton : styles.startButton]}
-            onPress={toggleBreathing}
-          >
-            <Text style={styles.controlButtonText}>
-              {isBreathing ? 'STOP' : 'START'}
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Sound selector */}
-        <View style={styles.soundSelectorContainer}>
-          <Text style={styles.soundSelectorTitle}>Ambient Sound</Text>
-          <View style={styles.soundOptionsContainer}>
-            {ambientSounds.slice(0, 3).map((sound) => (
-              <TouchableOpacity
-                key={sound.id}
-                style={[
-                  styles.soundOption,
-                  selectedSound === sound.id && styles.selectedSoundOption
-                ]}
-                onPress={() => handleSoundSelect(sound.id)}
-              >
-                <Text
-                  style={[
-                    styles.soundOptionText,
-                    selectedSound === sound.id && styles.selectedSoundOptionText
-                  ]}
-                >
-                  {sound.name}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
+        </TouchableOpacity>
       </View>
     </SafeAreaView>
   );
@@ -154,112 +149,60 @@ export const BreathingScreen: React.FC<BreathingScreenProps> = ({ onBack }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0f172a',
+    backgroundColor: colors.background,
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    paddingTop: Platform.OS === 'android' ? 35 : 20,
-    backgroundColor: '#1e293b',
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
   },
   backButton: {
-    padding: 10,
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   backButtonText: {
-    color: '#e2e8f0',
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  headerTitle: {
-    color: '#e2e8f0',
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  spacer: {
-    width: 60, // Same width as back button to center the title
+    fontSize: 32,
+    color: colors.textSecondary,
+    fontWeight: typography.regular,
   },
   content: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    paddingHorizontal: spacing.lg,
   },
-  circleContainer: {
-    marginBottom: 40,
+  phaseText: {
+    fontSize: typography.xxl,
+    fontWeight: typography.semibold,
+    color: colors.primary,
+    marginBottom: spacing.xxl,
   },
-  instructionsContainer: {
-    marginBottom: 30,
+  blobContainer: {
+    marginBottom: spacing.xxl,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  instructionText: {
-    color: '#e2e8f0',
-    fontSize: 16,
-    textAlign: 'center',
-    lineHeight: 24,
-  },
-  timerContainer: {
-    marginBottom: 30,
-  },
-  timerText: {
-    color: '#94a3b8',
-    fontSize: 24,
-    fontWeight: '500',
-  },
-  controlsContainer: {
-    marginBottom: 30,
+  timer: {
+    fontSize: 48,
+    fontWeight: typography.regular,
+    color: colors.textSecondary,
+    marginBottom: spacing.xl,
   },
   controlButton: {
-    paddingHorizontal: 40,
-    paddingVertical: 15,
-    borderRadius: 30,
-    minWidth: 120,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: colors.surfaceLight,
+    justifyContent: 'center',
     alignItems: 'center',
-  },
-  startButton: {
-    backgroundColor: '#4ade80',
-  },
-  stopButton: {
-    backgroundColor: '#f87171',
+    borderWidth: 1,
+    borderColor: colors.buttonBorder,
   },
   controlButtonText: {
-    color: '#0f172a',
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  soundSelectorContainer: {
-    width: '100%',
-    alignItems: 'center',
-  },
-  soundSelectorTitle: {
-    color: '#e2e8f0',
-    fontSize: 16,
-    fontWeight: '500',
-    marginBottom: 15,
-  },
-  soundOptionsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    width: '100%',
-  },
-  soundOption: {
-    paddingVertical: 8,
-    paddingHorizontal: 15,
-    borderRadius: 20,
-    backgroundColor: '#334155',
-    marginHorizontal: 5,
-  },
-  selectedSoundOption: {
-    backgroundColor: '#4ade80',
-  },
-  soundOptionText: {
-    color: '#cbd5e1',
-    fontSize: 14,
-  },
-  selectedSoundOptionText: {
-    color: '#0f172a',
-    fontWeight: '500',
+    fontSize: 24,
+    color: colors.text,
   },
 });
+
+export default BreathingScreen;

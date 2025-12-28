@@ -123,3 +123,6 @@ global.console = {
   warn: jest.fn(),
   error: jest.fn(),
 };
+
+// Mock the accessibility context
+jest.mock('./src/contexts/AccessibilityContext', () => require('./__mocks__/AccessibilityContext'));

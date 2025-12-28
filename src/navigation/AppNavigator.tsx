@@ -24,6 +24,9 @@ import { HomeScreen } from '../screens/HomeScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { HistoryScreen } from '../screens/HistoryScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
+import { BreathingScreen } from '../components/breathing/BreathingScreen';
+import { MoodCheckInScreen } from '../screens/MoodCheckInScreen';
+import { CompletionScreen } from '../screens/CompletionScreen';
 import ErrorBoundary from '../components/common/ErrorBoundary';
 
 // Navigation types
@@ -32,6 +35,9 @@ export type RootStackParamList = {
   Register: undefined;
   Onboarding: undefined;
   Home: undefined;
+  Breathing: { duration?: number };
+  MoodCheckIn: undefined;
+  Completion: { sessionDuration?: number };
   Settings: undefined;
   History: undefined;
   Profile: undefined;
@@ -90,7 +96,7 @@ const useReactNavigation = () => {
     // This will only work in a real React Native environment
     const { useNavigation: useReactNavigationNative } = require('@react-navigation/native');
     const navigation = useReactNavigationNative();
-    
+
     return {
       navigate: (routeName: string, params?: any) => navigation.navigate(routeName as never, params),
       goBack: () => navigation.goBack(),
@@ -202,60 +208,60 @@ export const AppNavigator: React.FC<AppNavigatorProps> = ({
                 <Text>App Navigator Ready</Text>
                 <Text>Mock Navigation Environment</Text>
                 <Text>Current Route: {currentRoute}</Text>
-                
+
                 {/* Navigation buttons */}
                 <View>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     onPress={() => mockNavigation.navigate('Home')}
                     testID="nav-home"
                   >
                     <Text>Home</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     onPress={() => mockNavigation.navigate('Login')}
                     testID="nav-login"
                   >
                     <Text>Login</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     onPress={() => mockNavigation.navigate('Register')}
                     testID="nav-register"
                   >
                     <Text>Register</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     onPress={() => mockNavigation.navigate('History')}
                     testID="nav-history"
                   >
                     <Text>History</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     onPress={() => mockNavigation.navigate('Profile')}
                     testID="nav-profile"
                   >
                     <Text>Profile</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     onPress={() => mockNavigation.navigate('Settings')}
                     testID="nav-settings"
                   >
                     <Text>Settings</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     onPress={() => mockNavigation.navigate('Onboarding')}
                     testID="nav-onboarding"
                   >
                     <Text>Onboarding</Text>
                   </TouchableOpacity>
                 </View>
-                
+
                 {/* Navigation error simulation */}
                 <View>
                   <Text>Navigation Status</Text>
                   <Text testID="navigation-status">Navigation is working correctly</Text>
                 </View>
               </View>
-              
+
               {/* Screen content area */}
               <View testID="screen-content">
                 {renderScreenContent()}
@@ -277,38 +283,53 @@ export const AppNavigator: React.FC<AppNavigatorProps> = ({
             headerShown: false, // Custom headers can be added later
           }}
         >
-          <Stack.Screen 
-            name="Login" 
+          <Stack.Screen
+            name="Login"
             component={LoginScreen}
             options={{ title: 'Sign In' }}
           />
-          <Stack.Screen 
-            name="Register" 
+          <Stack.Screen
+            name="Register"
             component={RegisterScreen}
             options={{ title: 'Create Account' }}
           />
-          <Stack.Screen 
-            name="Onboarding" 
+          <Stack.Screen
+            name="Onboarding"
             component={OnboardingFlow}
             options={{ title: 'Welcome' }}
           />
-          <Stack.Screen 
-            name="Home" 
+          <Stack.Screen
+            name="Home"
             component={HomeScreen}
             options={{ title: 'Mindloop' }}
           />
-          <Stack.Screen 
-            name="Settings" 
+          <Stack.Screen
+            name="Breathing"
+            component={BreathingScreen}
+            options={{ title: 'Breathing' }}
+          />
+          <Stack.Screen
+            name="MoodCheckIn"
+            component={MoodCheckInScreen}
+            options={{ title: 'Mood Check-in' }}
+          />
+          <Stack.Screen
+            name="Completion"
+            component={CompletionScreen}
+            options={{ title: 'Complete' }}
+          />
+          <Stack.Screen
+            name="Settings"
             component={SettingsScreen}
             options={{ title: 'Settings' }}
           />
-          <Stack.Screen 
-            name="History" 
+          <Stack.Screen
+            name="History"
             component={HistoryScreen}
             options={{ title: 'Session History' }}
           />
-          <Stack.Screen 
-            name="Profile" 
+          <Stack.Screen
+            name="Profile"
             component={ProfileScreen}
             options={{ title: 'Profile' }}
           />

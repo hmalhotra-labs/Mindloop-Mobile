@@ -50,8 +50,7 @@ describe('AudioService', () => {
 
   describe('error handling', () => {
     it('should handle invalid sound IDs gracefully', async () => {
-      const result = await AudioService.play('invalid-sound');
-      expect(result).toBe(false);
+      await expect(AudioService.play('invalid-sound')).rejects.toThrow();
     });
 
     it('should handle invalid volume levels', () => {

@@ -48,6 +48,7 @@ export const AccessibleButton: React.FC<AccessibleButtonProps> = ({
       onPress={handlePress}
       disabled={disabled}
       accessible={true}
+      accessibilityRole="button"
       accessibilityLabel={accessibilityLabel || title}
       accessibilityHint={accessibilityHint}
       accessibilityState={{ disabled }}

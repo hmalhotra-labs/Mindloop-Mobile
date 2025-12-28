@@ -14,8 +14,8 @@ describe('High Contrast Mode Integration', () => {
       React.useEffect(() => {
         // Enable high contrast mode for this test
         toggleHighContrastMode();
-      }, [toggleHighContrastMode]);
-
+      }, []);
+ 
       return (
         <AccessibleButton
           title="Submit"
@@ -47,7 +47,7 @@ describe('High Contrast Mode Integration', () => {
       React.useEffect(() => {
         // Enable high contrast mode for this test
         toggleHighContrastMode();
-      }, [toggleHighContrastMode]);
+      }, []);
 
       return (
         <AccessibleTextInput
@@ -79,7 +79,7 @@ describe('High Contrast Mode Integration', () => {
       React.useEffect(() => {
         // Enable high contrast mode for this test
         toggleHighContrastMode();
-      }, [toggleHighContrastMode]);
+      }, []);
 
       return (
         <React.Fragment>
@@ -154,7 +154,7 @@ describe('High Contrast Mode Integration', () => {
       React.useEffect(() => {
         // Enable high contrast mode for this test
         toggleHighContrastMode();
-      }, [toggleHighContrastMode]);
+      }, []);
 
       return (
         <AccessibleButton

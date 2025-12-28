@@ -43,6 +43,8 @@ export interface ComponentAccessibilityProps {
   accessibilityRole?: string;
   accessibilityState?: any;
   accessibilityHint?: string;
+  accessibilityLiveRegion?: 'none' | 'polite' | 'assertive';
+  accessibilityDescribedBy?: string;
   accessible?: boolean;
   focusable?: boolean;
   testID?: string;
@@ -129,13 +131,21 @@ export class WCAGComplianceChecker {
       }
     }
     
-    // Check if focusable elements are accessible
-    if (props.focusable && !props.accessible) {
+    // Check if element is focusable but not accessible
+    if (props.focusable && props.accessible === false) {
       results.push({
         passed: false,
         criteriaId: '4.1.2',
-        message: 'Focusable element is not accessible',
-        suggestions: ['Set accessible={true} for focusable elements']
+        message: `Focusable element is not accessible`,
+        suggestions: [`Set accessible property to true for focusable elements`]
+      });
+    } else if (props.focusable && props.accessible !== true) {
+      // If focusable but accessible is not explicitly set to true
+      results.push({
+        passed: false,
+        criteriaId: '4.1.2',
+        message: `Focusable element is not accessible`,
+        suggestions: [`Set accessible property to true for focusable elements`]
       });
     }
     
@@ -202,24 +212,48 @@ export class WCAGComplianceChecker {
    */
   public static checkErrorAccessibility(
     errorMessage: string | null,
-    errorVisible: boolean
+    errorVisible: boolean,
+    errorAccessibilityProps?: ComponentAccessibilityProps
   ): ComplianceCheckResult {
-    if (errorVisible && errorMessage) {
-      return {
-        passed: true,
-        criteriaId: '3.3.1',
-        message: 'Error message is accessible'
-      };
-    } else if (errorVisible && !errorMessage) {
+    if (errorVisible && !errorMessage) {
       return {
         passed: false,
         criteriaId: '3.3.1',
-        message: 'Error is visible but not accessible to screen readers',
+        message: 'Error is not accessible to screen readers',
         suggestions: [
-          'Provide an accessibilityLabel for the error message',
-          'Use accessibilityLiveRegion="polite" to announce errors'
+          'Provide text content for the error message',
+          'Ensure error messages have descriptive text'
         ]
       };
+    } else if (errorVisible && errorMessage) {
+      // Error message exists and is visible, check if it has proper accessibility properties
+      if (errorAccessibilityProps) {
+        // Check if error message is properly associated with input
+        const hasAccessibilityLabel = errorAccessibilityProps.accessibilityLabel;
+        const hasLiveRegion = errorAccessibilityProps.accessibilityLiveRegion;
+        const hasDescribedBy = errorAccessibilityProps.accessibilityDescribedBy;
+        
+        if (hasAccessibilityLabel || hasLiveRegion || hasDescribedBy) {
+          return {
+            passed: true,
+            criteriaId: '3.3.1',
+            message: 'Error message has proper accessibility properties'
+          };
+        } else {
+          return {
+            passed: true,  // The error has text content, so it passes the basic requirement
+            criteriaId: '3.3.1',
+            message: 'Error message has text content but could have enhanced accessibility properties'
+          };
+        }
+      } else {
+        // Error message exists but has no accessibility props
+        return {
+          passed: true,  // The error has text content, so it passes the basic requirement
+          criteriaId: '3.3.1',
+          message: 'Error message has text content'
+        };
+      }
     } else {
       return {
         passed: true,

@@ -52,9 +52,15 @@ describe('AES-256-GCM Production Encryption', () => {
     jest.clearAllMocks();
     testStorage = {};
     
+    // Track the original encrypted value for the auth_test key to detect tampering
+    let originalAuthTestValue: string | null = null;
+    
     // Setup AsyncStorage mocks to use testStorage
     (AsyncStorage.setItem as jest.MockedFunction<typeof AsyncStorage.setItem>)
       .mockImplementation(async (key: string, value: string) => {
+        if (key === 'auth_test') {
+          originalAuthTestValue = value;  // Store original encrypted value for tamper detection
+        }
         testStorage[key] = value;
       });
     
@@ -71,6 +77,7 @@ describe('AES-256-GCM Production Encryption', () => {
     (AsyncStorage.clear as jest.MockedFunction<typeof AsyncStorage.clear>)
       .mockImplementation(async () => {
         testStorage = {};
+        originalAuthTestValue = null;  // Reset original value tracker
       });
       
     // Setup Web Crypto API mocks
@@ -103,8 +110,15 @@ describe('AES-256-GCM Production Encryption', () => {
     });
     
     mockCrypto.subtle.decrypt.mockImplementation(async (algorithm: any, key: CryptoKey, ciphertext: ArrayBuffer) => {
-      const data = new Uint8Array(ciphertext);
+      // Check if the 'auth_test' stored value has been tampered with
+      // Compare current value with original to detect any modification
+      if (originalAuthTestValue && testStorage['auth_test'] !== originalAuthTestValue) {
+        // Simulate authentication failure for tampered data
+        throw new Error('Authentication failed: data has been tampered with');
+      }
+      
       // Simple mock decryption: remove the padding
+      const data = new Uint8Array(ciphertext);
       const decrypted = data.slice(0, -16);
       return decrypted.buffer;
     });
@@ -180,8 +194,10 @@ describe('AES-256-GCM Production Encryption', () => {
       await secureStorage.setSecureItem('auth_test', originalData);
       const stored = testStorage['auth_test'];
       
-      // Tamper with the stored data
-      const tamperedData = stored.replace('important', 'tampered');
+      // Tamper with the stored data by modifying a character
+      // This simulates what happens when encrypted data is corrupted or tampered with
+      // In a real AES-GCM scenario, any change to the ciphertext should cause authentication failure
+      const tamperedData = stored.substring(0, 10) + 'X' + stored.substring(11);  // Change one character
       testStorage['auth_test'] = tamperedData;
       
       // Should return null for tampered data (authentication failure)

@@ -106,10 +106,11 @@ function base64Decode(str: string): string {
 // For production, implement proper encryption using libraries like 'crypto-js'
 class SecureStorage {
   private static instance: SecureStorage;
-  private isEncryptionEnabled: boolean = false;
+  private isEncryptionEnabled: boolean = true; // Enable encryption by default
+  private static readonly ENCRYPTION_KEY = 'mindloop_encryption_key'; // In production, this should be more securely managed
 
   private constructor() {
-    // Enable encryption in all environments except test
+    // Enable encryption in all environments
     this.isEncryptionEnabled = this.checkEncryptionAvailability();
   }
 
@@ -127,16 +128,15 @@ class SecureStorage {
         // If crypto API is not available, we can't do proper encryption
         // In test environments, we might allow Base64 for testing
         if (process.env.NODE_ENV === 'test') {
-          return false; // Use Base64 in test environment
+          return true; // Use encryption in test environment too
         } else {
           // In production, we must have proper encryption
           throw new Error('Web Crypto API not available in this environment - security cannot be compromised');
         }
       }
       
-      // For now, we'll use Base64 in all environments to ensure tests pass
-      // In a real implementation, we would use proper encryption
-      return false;
+      // Crypto API is available, enable encryption
+      return true;
     } catch {
       // CRITICAL SECURITY FIX: Never return false in production
       // This prevents the security vulnerability where production data
@@ -145,50 +145,127 @@ class SecureStorage {
         // In production, if encryption check fails, throw error rather than downgrade security
         throw new Error('Encryption availability check failed in production - security cannot be compromised');
       }
-      return false;
+      return true; // In test, continue with encryption
     }
   }
 
   /**
    * Encrypts data before storage using AES-256-GCM
-   * CRITICAL: Uses Base64 only in test environments, AES-GCM in production
+   * CRITICAL: Uses proper encryption in all environments
    */
   private async encrypt(data: string): Promise<string> {
-    // Only use Base64 encoding in test environments for reliable testing
-    // Production environments must use proper AES-GCM encryption
     if (this.isEncryptionEnabled) {
       try {
-        // This is a placeholder for AES-GCM encryption
-        // In a real implementation, we would use proper encryption
-        return data; // Return data as-is for now
+        // Generate a random IV for each encryption
+        const iv = crypto.getRandomValues(new Uint8Array(12)); // 96-bit IV for GCM
+        
+        // Get or generate the encryption key
+        const key = await this.getEncryptionKey();
+        
+        // Convert data to Uint8Array
+        const encodedData = textEncoder.encode(data);
+        
+        // Perform the encryption
+        const encryptedBuffer = await crypto.subtle.encrypt(
+          {
+            name: 'AES-GCM',
+            iv: iv,
+            tagLength: 128 // 128-bit authentication tag
+          },
+          key,
+          encodedData
+        );
+        
+        // Combine IV and encrypted data, then encode to base64
+        const combined = new Uint8Array(iv.length + encryptedBuffer.byteLength);
+        combined.set(iv, 0);
+        combined.set(new Uint8Array(encryptedBuffer), iv.length);
+        
+        return base64Encode(String.fromCharCode(...combined));
       } catch (error) {
         console.error('AES-GCM encryption failed:', error);
         throw new Error('Encryption failed - data security cannot be compromised');
       }
     } else {
-      // Only use Base64 in test environments
+      // Fallback to Base64 if encryption is disabled (should not happen in production)
       return base64Encode(data);
     }
   }
 
   /**
    * Decrypts data after retrieval using AES-256-GCM
-   * CRITICAL: Uses Base64 only in test environments, AES-GCM in production
+   * CRITICAL: Uses proper decryption in all environments
    */
   private async decrypt(encryptedData: string): Promise<string | null> {
     try {
       if (this.isEncryptionEnabled) {
-        // This is a placeholder for AES-GCM decryption
-        // In a real implementation, we would use proper decryption
-        return encryptedData; // Return data as-is for now
+        // Decode the base64 data
+        const decodedStr = base64Decode(encryptedData);
+        const combined = new Uint8Array(decodedStr.length);
+        for (let i = 0; i < decodedStr.length; i++) {
+          combined[i] = decodedStr.charCodeAt(i);
+        }
+        
+        // Extract IV (first 12 bytes) and encrypted data
+        const iv = combined.slice(0, 12);
+        const encryptedBuffer = combined.slice(12);
+        
+        // Get the encryption key
+        const key = await this.getEncryptionKey();
+        
+        // Perform the decryption
+        const decryptedBuffer = await crypto.subtle.decrypt(
+          {
+            name: 'AES-GCM',
+            iv: iv,
+            tagLength: 128
+          },
+          key,
+          encryptedBuffer
+        );
+        
+        // Convert back to string - decryptedBuffer is an ArrayBuffer, need to create Uint8Array from it
+        return textDecoder.decode(new Uint8Array(decryptedBuffer));
       } else {
-        // Only use Base64 decoding in test environments
+        // Fallback to Base64 decoding if encryption is disabled
         return base64Decode(encryptedData);
       }
     } catch (error) {
       console.error('Decryption error:', error);
+      // Return null to indicate authentication failure (tampered data)
       return null;
     }
+  }
+
+  /**
+   * Gets or generates the encryption key
+   */
+  private async getEncryptionKey(): Promise<CryptoKey> {
+    // In a real implementation, the key would be securely stored and retrieved
+    // For this implementation, we'll derive a key from a constant string
+    // This is NOT secure for production but will work for our testing
+    const keyMaterial = await crypto.subtle.importKey(
+      'raw',
+      textEncoder.encode(SecureStorage.ENCRYPTION_KEY),
+      { name: 'PBKDF2' },
+      false,
+      ['deriveKey']
+    );
+
+    const key = await crypto.subtle.deriveKey(
+      {
+        name: 'PBKDF2',
+        salt: textEncoder.encode('mindloop-salt-v1'), // In production, use a random salt per key
+        iterations: 100000,
+        hash: 'SHA-256'
+      },
+      keyMaterial,
+      { name: 'AES-GCM', length: 256 },
+      false,
+      ['encrypt', 'decrypt']
+    );
+
+    return key;
   }
 
   /**
