@@ -241,17 +241,28 @@ export class WCAGComplianceChecker {
           };
         } else {
           return {
-            passed: true,  // The error has text content, so it passes the basic requirement
+            passed: false,  // Error message should have accessibility properties
             criteriaId: '3.3.1',
-            message: 'Error message has text content but could have enhanced accessibility properties'
+            message: 'Error message has text content but lacks proper accessibility properties',
+            suggestions: [
+              'Add accessibilityLiveRegion="assertive" to announce error immediately',
+              'Associate error with input using accessibilityDescribedBy',
+              'Provide clear accessibilityLabel for screen readers'
+            ]
           };
         }
       } else {
-        // Error message exists but has no accessibility props
+        // Error message exists but has no accessibility props - this is a failure case
+        // because error messages should be properly accessible to screen readers
         return {
-          passed: true,  // The error has text content, so it passes the basic requirement
+          passed: false,  // Error message should have accessibility properties
           criteriaId: '3.3.1',
-          message: 'Error message has text content'
+          message: 'Error message has text content but lacks accessibility properties',
+          suggestions: [
+            'Add accessibility properties to make error accessible to screen readers',
+            'Use accessibilityLiveRegion="assertive" for immediate announcement',
+            'Associate error with input using accessibilityDescribedBy'
+          ]
         };
       }
     } else {

@@ -167,8 +167,17 @@ describe('WCAG Compliance Utilities', () => {
     });
 
     describe('checkErrorAccessibility', () => {
-      it('should pass when error is visible and has message', () => {
+      it('should fail when error is visible and has message but lacks accessibility properties', () => {
         const result = WCAGComplianceChecker.checkErrorAccessibility('Invalid email', true);
+        
+        expect(result.passed).toBe(false);
+        expect(result.criteriaId).toBe('3.3.1');
+      });
+      
+      it('should pass when error is visible, has message, and has proper accessibility properties', () => {
+        const result = WCAGComplianceChecker.checkErrorAccessibility('Invalid email', true, {
+          accessibilityLiveRegion: 'assertive'
+        });
         
         expect(result.passed).toBe(true);
         expect(result.criteriaId).toBe('3.3.1');
